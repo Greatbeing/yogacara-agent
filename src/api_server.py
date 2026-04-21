@@ -1,32 +1,70 @@
-import asyncio, uvicorn, sys, os
+import asyncio
+import os
+import sys
+from typing import Any
+
+import uvicorn
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
-from typing import Dict, Any
+
 sys.path.append(os.path.dirname(__file__))
-from yogacara_langgraph import build_graph, slow_loop, env, alaya, manas
+from yogacara_langgraph import alaya, build_graph, env, manas, slow_loop
 
 app = FastAPI(title="唯识进化框架 API", version="1.1.0")
-graph = build_graph(); loop_started = False
+graph = build_graph()
+loop_started = False
+
 
 class AgentRequest(BaseModel):
-    max_steps: int = 60; custom_obs: Dict[str, Any] = None
+    max_steps: int = 60
+    custom_obs: dict[str, Any] = None
+
 
 @app.on_event("startup")
 async def startup_event():
     global loop_started
-    if not loop_started: asyncio.create_task(slow_loop(alaya, interval=10)); loop_started = True
+    if not loop_started:
+        asyncio.create_task(slow_loop(alaya, interval=10))
+        loop_started = True
+
 
 @app.post("/run_episode")
 async def run_episode(req: AgentRequest, request: Request):
     try:
         env.reset()
-        if req.custom_obs: env.agent_pos = list(req.custom_obs.get("pos", [0,0]))
-        init_state = {"obs": env._observe(), "action": "", "reward": 0.0, "done": False, "step": 0, "seeds": [], "unc": 0.0, "manas_passed": True, "tool_calls": [], "recent_rewards": [], "pos_history": [], "metrics": {}}
+        if req.custom_obs:
+            env.agent_pos = list(req.custom_obs.get("pos", [0, 0]))
+        init_state = {
+            "obs": env._observe(),
+            "action": "",
+            "reward": 0.0,
+            "done": False,
+            "step": 0,
+            "seeds": [],
+            "unc": 0.0,
+            "manas_passed": True,
+            "tool_calls": [],
+            "recent_rewards": [],
+            "pos_history": [],
+            "metrics": {},
+        }
         final_state = await graph.ainvoke(init_state)
-        return {"status": "success", "steps": final_state["step"], "cumulative_reward": sum(final_state["recent_rewards"]), "manas_reflections": manas.reflections, "resources_found": sum(1 for r in final_state["recent_rewards"] if r > 2.0), "final_pos": final_state["obs"]["pos"]}
-    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
+        return {
+            "status": "success",
+            "steps": final_state["step"],
+            "cumulative_reward": sum(final_state["recent_rewards"]),
+            "manas_reflections": manas.reflections,
+            "resources_found": sum(1 for r in final_state["recent_rewards"] if r > 2.0),
+            "final_pos": final_state["obs"]["pos"],
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/health")
-async def health(): return {"status": "ok", "memory_seeds": len(alaya.seeds), "manas_reflections": manas.reflections}
+async def health():
+    return {"status": "ok", "memory_seeds": len(alaya.seeds), "manas_reflections": manas.reflections}
 
-if __name__ == "__main__": uvicorn.run("api_server:app", host="0.0.0.0", port=8000, reload=True)
+
+if __name__ == "__main__":
+    uvicorn.run("api_server:app", host="0.0.0.0", port=8000, reload=True)
