@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: "YourLastName"
+    given-names: "YourFirstName"
+title: "Yogacara Agent: A Cognitive Evolution Framework for AI Agents"
+version: 1.0.0
+date-released: 2024-06-01
+url: "https://github.com/YOUR_USERNAME/yogacara-agent"
+license: Apache-2.0
+repository-code: "https://github.com/YOUR_USERNAME/yogacara-agent"
+keywords: [ai-agent, cognitive-architecture, reinforcement-learning, langgraph, online-alignment]

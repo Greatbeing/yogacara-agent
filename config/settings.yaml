@@ -1,0 +1,14 @@
+env:
+  grid_size: 10
+  max_steps: 60
+llm:
+  base_url: "http://localhost:8000/v1"
+  model: "Qwen/Qwen2.5-7B-Instruct"
+  temperature: 0.3
+memory:
+  backend: milvus
+  host: localhost
+  port: 19530
+manas:
+  cooldown: 4
+  base_threshold: 0.45

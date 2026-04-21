@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: yogacara-config
+
+  settings.yaml: |
+    env:
+      grid_size: 10
+      max_steps: 60
+    llm:
+      base_url: "http://vllm-gateway.svc.cluster.local/v1"
+      model: "Qwen/Qwen2.5-7B-Instruct"

@@ -1,0 +1,6 @@
+apiVersion: v2
+name: yogacara-agent
+description: 唯识进化框架 - 生产级AI Agent部署
+type: application
+version: 1.0.0
+appVersion: "1.0.0"

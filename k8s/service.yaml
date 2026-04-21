@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+meta
+  name: yogacara-agent
+spec:
+  selector:
+    app: yogacara-agent
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8000
+  type: ClusterIP
