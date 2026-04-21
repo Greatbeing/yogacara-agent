@@ -62,10 +62,10 @@ Apache License 2.0。商业使用请保留版权声明。
 
 ## 📚 Citation
 ```bibtex
-@software{yogacara_agent_2024,
+@software{yogacara_agent_2026,
   title = {Yogacara Agent: A Cognitive Evolution Framework for AI Agents},
-  author = {Your Name},
-  year = {2024},
+  author = {JueXin (Greatbeing)},
+  year = {2026},
   url = {https://github.com/Greatbeing/yogacara-agent},
   license = {Apache-2.0}
 }

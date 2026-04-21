@@ -9,7 +9,7 @@
 
 ## 🛠️ 本地开发
 ```bash
-git clone https://github.com/YOUR_USERNAME/yogacara-agent.git
+git clone https://github.com/Greatbeing/yogacara-agent.git
 cd yogacara-agent
 pip install -e ".[dev]"
 pre-commit install
