@@ -2,7 +2,7 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-green)](https://www.python.org/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-0.0.30%2B-orange)](https://langchain-ai.github.io/langgraph/)
-[![CI](https://img.shields.io/github/actions/workflow/status/YOUR_USERNAME/yogacara-agent/release.yml?label=CI)](https://github.com/YOUR_USERNAME/yogacara-agent/actions)
+[![CI](https://img.shields.io/github/actions/workflow/status/Greatbeing/yogacara-agent/release.yml?label=CI)](https://github.com/Greatbeing/yogacara-agent/actions)
 
 将佛教唯识学“八识”认知架构工程化为可计算、可演化、可对齐的 AI Agent 系统。支持快慢双循环决策、三性认知过滤、在线策略进化与跨仿真平台适配。
 
@@ -30,7 +30,7 @@ graph LR
 
 ## 🚀 快速开始
 ```bash
-git clone https://github.com/YOUR_USERNAME/yogacara-agent.git
+git clone https://github.com/Greatbeing/yogacara-agent.git
 cd yogacara-agent
 pip install -e ".[all]"
 python src/yogacara_test.py  # MVP验证（零依赖）
@@ -66,7 +66,7 @@ Apache License 2.0。商业使用请保留版权声明。
   title = {Yogacara Agent: A Cognitive Evolution Framework for AI Agents},
   author = {Your Name},
   year = {2024},
-  url = {https://github.com/YOUR_USERNAME/yogacara-agent},
+  url = {https://github.com/Greatbeing/yogacara-agent},
   license = {Apache-2.0}
 }
 ```
