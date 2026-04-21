@@ -2,6 +2,7 @@ import logging
 import threading
 import time
 from collections import deque
+from typing import Any
 
 import torch
 from datasets import Dataset
@@ -20,7 +21,7 @@ class OnlineAlignmentManager:
             self.base_model,
             LoraConfig(r=lora_rank, lora_alpha=16, target_modules=["q_proj", "v_proj"], task_type="CAUSAL_LM"),
         )
-        self.buffer = deque(maxlen=buffer_size)
+        self.buffer: deque[dict[str, Any]] = deque(maxlen=buffer_size)
         self.fisher_diag = {n: torch.zeros_like(p) for n, p in self.model.named_parameters() if p.requires_grad}
         self.lock = threading.Lock()
         self.is_training = False
@@ -34,12 +35,12 @@ class OnlineAlignmentManager:
         for n, p in self.model.named_parameters():
             if p.requires_grad:
                 self.fisher_diag[n].zero_()
-        trainer = DPOTrainer(
+        trainer = DPOTrainer(  # type: ignore[call-arg]
             model=self.model,
             ref_model=None,
             args=DPOConfig(output_dir="./tmp", max_steps=1, per_device_train_batch_size=2),
             train_dataset=dataset,
-            tokenizer=self.tokenizer,
+            processing_class=self.tokenizer,
         )
         trainer.train()
         for n, p in self.model.named_parameters():
@@ -59,16 +60,16 @@ class OnlineAlignmentManager:
             self._compute_fisher(dataset)
 
             class EWC_DPOTrainer(DPOTrainer):
-                def compute_loss(self, model, inputs, return_outputs=False):
-                    loss = super().compute_loss(model, inputs, return_outputs)
+                def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):  # type: ignore[override]
+                    loss = super().compute_loss(model, inputs, return_outputs, num_items_in_batch)
                     ewc_loss = sum(
-                        (self.fisher_diag[n] * (p - self.base_params[n]) ** 2).sum()
+                        (self.fisher_diag[n] * (p - self.base_params[n]) ** 2).sum()  # type: ignore[attr-defined]
                         for n, p in model.named_parameters()
                         if p.requires_grad and n in self.fisher_diag
                     )
                     return loss + ewc_lambda * ewc_loss
 
-            trainer = EWC_DPOTrainer(
+            trainer = EWC_DPOTrainer(  # type: ignore[call-arg]
                 model=self.model,
                 ref_model=None,
                 args=DPOConfig(
@@ -80,10 +81,10 @@ class OnlineAlignmentManager:
                     logging_steps=2,
                 ),
                 train_dataset=dataset,
-                tokenizer=self.tokenizer,
+                processing_class=self.tokenizer,
             )
-            trainer.base_params = {n: p.detach().clone() for n, p in self.model.named_parameters()}
-            trainer.fisher_diag = self.fisher_diag
+            trainer.base_params = {n: p.detach().clone() for n, p in self.model.named_parameters()}  # type: ignore[attr-defined]
+            trainer.fisher_diag = self.fisher_diag  # type: ignore[attr-defined]
             trainer.train()
             ckpt_path = f"./lora_ckpt/step_{int(time.time())}"
             self.model.save_pretrained(ckpt_path)

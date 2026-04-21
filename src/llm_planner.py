@@ -30,7 +30,7 @@ class LLMPlanner:
                 temperature=self.temperature,
                 response_format={"type": "json_object"},
             )
-            parsed = json.loads(response.choices[0].message.content)
+            parsed = json.loads(response.choices[0].message.content or "{}")
             action = parsed["action"].upper()
             confidence = float(parsed.get("confidence", 0.5))
             uncertainty = max(0.0, min(1.0, 1.0 - confidence))
@@ -62,6 +62,6 @@ class LLMPlanner:
             pos_b = sum(s["rew"] * s["imp"] for s in seeds if s["act"] == a and s["rew"] > 0) * 0.8
             neg_p = sum(abs(s["rew"]) * s["imp"] for s in seeds if s["act"] == a and s["rew"] < 0) * 0.5
             scores[a] = base + pos_b - neg_p + (0.25 if a != "STAY" else -0.8) + random.uniform(-0.03, 0.03)
-        best = max(scores, key=scores.get)
+        best = max(scores, key=lambda k: scores[k])  # type: ignore[arg-type]
         unc = max(0.0, min(1.0, 1.0 - (scores[best] - min(scores.values())) / 2.0))
         return best, unc, "启发式降级", []

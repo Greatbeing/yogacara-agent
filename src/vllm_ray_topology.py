@@ -57,6 +57,6 @@ class LLMRouter:
             return {"error": str(e), "fallback": "heuristic"}
 
 
-vllm_dep = VLLMDeployment.bind(model_name="Qwen/Qwen2.5-7B-Instruct", tensor_parallel_size=1)
-router_dep = LLMRouter.bind(vllm_dep)
+vllm_dep = VLLMDeployment.bind(model_name="Qwen/Qwen2.5-7B-Instruct", tensor_parallel_size=1)  # type: ignore[attr-defined]
+router_dep = LLMRouter.bind(vllm_dep)  # type: ignore[attr-defined]
 # 启动: serve run src.vllm_ray_topology:router_dep

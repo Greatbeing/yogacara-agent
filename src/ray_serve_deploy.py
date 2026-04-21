@@ -12,7 +12,7 @@ app = FastAPI()
 
 class EpisodeRequest(BaseModel):
     max_steps: int = 60
-    custom_obs: dict[str, Any] = None
+    custom_obs: dict[str, Any] | None = None
 
 
 @serve.deployment(

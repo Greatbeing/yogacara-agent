@@ -17,7 +17,7 @@ loop_started = False
 
 class AgentRequest(BaseModel):
     max_steps: int = 60
-    custom_obs: dict[str, Any] = None
+    custom_obs: dict[str, Any] | None = None
 
 
 @app.on_event("startup")

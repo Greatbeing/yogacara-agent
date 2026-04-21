@@ -1,5 +1,6 @@
 import logging
 from collections import deque
+from typing import Any
 
 import numpy as np
 
@@ -8,9 +9,9 @@ logger = logging.getLogger(__name__)
 
 class MemoryGuard:
     def __init__(self, z_threshold: float = 2.5, quarantine_size: int = 50):
-        self.z_threshold = z_threshold
-        self.quarantine = deque(maxlen=quarantine_size)
-        self.reward_history = deque(maxlen=200)
+        self.z_threshold: float = z_threshold
+        self.quarantine: deque[dict[str, Any]] = deque(maxlen=quarantine_size)
+        self.reward_history: deque[float] = deque(maxlen=200)
 
     def validate_seed(self, seed: dict) -> bool:
         required = ["emb", "act", "rew", "ts", "imp"]

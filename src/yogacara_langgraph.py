@@ -7,6 +7,7 @@ from typing import Any, TypedDict
 
 from langchain_core.tools import tool
 from langgraph.graph import END, StateGraph
+from langgraph.graph.state import CompiledStateGraph
 
 GRID_SIZE = 10
 ACTIONS = ["UP", "DOWN", "LEFT", "RIGHT", "STAY"]
@@ -162,7 +163,7 @@ async def node_plan(state: YogacaraState) -> YogacaraState:
         pos_b = sum(s["rew"] * s["imp"] for s in state["seeds"] if s["act"] == a and s["rew"] > 0) * 0.8
         neg_p = sum(abs(s["rew"]) * s["imp"] for s in state["seeds"] if s["act"] == a and s["rew"] < 0) * 0.5
         scores[a] = base + pos_b - neg_p + (0.25 if a != "STAY" else -0.8) + random.uniform(-0.03, 0.03)
-    best = max(scores, key=scores.get)
+    best = max(scores, key=lambda k: scores[k])  # type: ignore[arg-type]
     unc = max(0.0, min(1.0, 1.0 - (scores[best] - min(scores.values())) / 2.0))
     state["action"] = best
     state["unc"] = unc
@@ -227,7 +228,7 @@ def check_done(state: YogacaraState) -> str:
     return "end" if state["done"] else "continue"
 
 
-def build_graph() -> StateGraph:
+def build_graph() -> CompiledStateGraph[YogacaraState, None, YogacaraState]:
     wf = StateGraph(YogacaraState)
     for n, fn in [
         ("perceive", node_perceive),
