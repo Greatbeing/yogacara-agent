@@ -86,5 +86,9 @@ async def health():
     return {"status": "ok", "memory_seeds": len(alaya.seeds), "manas_reflections": manas.reflections}
 
 
+async def main():
+    uvicorn.run("yogacara_agent.api_server:app", host="0.0.0.0", port=8000, reload=False)
+
+
 if __name__ == "__main__":
-    uvicorn.run("api_server:app", host="0.0.0.0", port=8000, reload=True)
+    main()
