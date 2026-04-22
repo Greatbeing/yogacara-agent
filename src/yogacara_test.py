@@ -129,15 +129,26 @@ class ManasController:
 
 
 class ConsciousnessPlanner:
-    def plan(self, obs, seeds):
+    def plan(self, obs, seeds, env_resources=None):
         view = obs["grid_view"]
+        pos = obs.get("pos", (0, 0))
+        # Distance heuristic: guide toward nearest resource when not in local view
+        dist_bonus = 0.0
+        best_dir_r = best_dir_c = None
+        if not any(v == 1.0 for v in view) and env_resources:
+            nearest = min(env_resources, key=lambda r: abs(r[0] - pos[0]) + abs(r[1] - pos[1]))
+            best_dir_r = "DOWN" if nearest[0] > pos[0] else "UP" if nearest[0] < pos[0] else "STAY"
+            best_dir_c = "RIGHT" if nearest[1] > pos[1] else "LEFT" if nearest[1] < pos[1] else "STAY"
+            dist_bonus = 0.4
+
         scores = {}
         for a in ACTIONS:
             idx = ACTION_TO_IDX[a]
             base = view[idx] if 0 <= idx < 9 else -0.5
             pos_b = sum(s.reward * s.importance for s in seeds if s.action == a and s.reward > 0) * 0.8
             neg_p = sum(abs(s.reward) * s.importance for s in seeds if s.action == a and s.reward < 0) * 0.5
-            scores[a] = base + pos_b - neg_p + (0.25 if a != "STAY" else -0.8) + random.uniform(-0.03, 0.03)
+            approach = dist_bonus if best_dir_r and a in (best_dir_r, best_dir_c) else 0.0
+            scores[a] = base + pos_b - neg_p + approach + (0.25 if a != "STAY" else -0.8) + random.uniform(-0.03, 0.03)
         best = max(scores, key=scores.get)
         unc = max(0.0, min(1.0, 1.0 - (scores[best] - min(scores.values())) / 2.0))
         return best, unc, f"观测→检索({len(seeds)})→经验加权→{best}"
@@ -160,7 +171,7 @@ class YogacaraAgent:
             self.pos_history.append(obs["pos"])
             seeds = self.alaya.retrieve(obs)
             self.metrics["hits"] += len(seeds)
-            action, unc, causal = self.planner.plan(obs, seeds)
+            action, unc, causal = self.planner.plan(obs, seeds, env_resources=self.env.resources)
             final, passed, log = self.manas.filter(action, obs, unc, step, self.recent_rewards, self.pos_history)
             if not passed:
                 self.metrics["intercepts"] += 1

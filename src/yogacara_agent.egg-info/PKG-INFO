@@ -1,0 +1,140 @@
+Metadata-Version: 2.4
+Name: yogacara-agent
+Version: 1.0.0
+Summary: A cognitive evolution framework for AI Agents based on Yogacara theory
+Author-email: Yogacara Team <contact@yogacara.dev>
+License: Apache License
+        Version 2.0, January 2004
+        http://www.apache.org/licenses/
+        
+        Copyright 2024 Yogacara Agent Contributors
+        
+        Licensed under the Apache License, Version 2.0 (the "License");
+        you may not use this file except in compliance with the License.
+        You may obtain a copy of the License at
+        
+            http://www.apache.org/licenses/LICENSE-2.0
+        
+        Unless required by applicable law or agreed to in writing, software
+        distributed under the License is distributed on an "AS IS" BASIS,
+        WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+        See the License for the specific language governing permissions and
+        limitations under the License.
+        
+Classifier: Development Status :: 4 - Beta
+Classifier: Intended Audience :: Science/Research
+Classifier: License :: OSI Approved :: Apache Software License
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+License-File: LICENSE
+Requires-Dist: numpy>=1.24.0
+Requires-Dist: pydantic>=2.0.0
+Requires-Dist: rich>=13.0.0
+Requires-Dist: langgraph>=0.0.30
+Requires-Dist: langchain-core>=0.1.0
+Requires-Dist: fastapi>=0.109.0
+Requires-Dist: uvicorn>=0.27.0
+Requires-Dist: prometheus-client>=0.19.0
+Requires-Dist: python-dotenv>=1.0.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: pytest-cov>=4.0.0; extra == "dev"
+Requires-Dist: ruff>=0.3.0; extra == "dev"
+Requires-Dist: mypy>=1.0; extra == "dev"
+Requires-Dist: pre-commit; extra == "dev"
+Provides-Extra: llm
+Requires-Dist: openai>=1.0.0; extra == "llm"
+Requires-Dist: tenacity>=8.0.0; extra == "llm"
+Requires-Dist: transformers>=4.38.0; extra == "llm"
+Requires-Dist: peft>=0.9.0; extra == "llm"
+Requires-Dist: trl>=0.8.0; extra == "llm"
+Provides-Extra: memory
+Requires-Dist: pymilvus>=2.3.0; extra == "memory"
+Requires-Dist: faiss-cpu>=1.7.4; extra == "memory"
+Provides-Extra: serve
+Requires-Dist: ray[serve]>=2.9.0; extra == "serve"
+Requires-Dist: vllm>=0.3.0; extra == "serve"
+Requires-Dist: slowapi>=0.1.0; extra == "serve"
+Provides-Extra: plot
+Requires-Dist: matplotlib>=3.7.0; extra == "plot"
+Requires-Dist: seaborn>=0.12.0; extra == "plot"
+Requires-Dist: pandas>=2.0.0; extra == "plot"
+Requires-Dist: tqdm>=4.65.0; extra == "plot"
+Provides-Extra: all
+Requires-Dist: yogacara-agent[dev,llm,memory,plot,serve]; extra == "all"
+Dynamic: license-file
+
+# 🌀 Yogacara Agent：基于唯识理论的进化型 AI Agent 框架
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.10%2B-green)](https://www.python.org/)
+[![LangGraph](https://img.shields.io/badge/LangGraph-0.0.30%2B-orange)](https://langchain-ai.github.io/langgraph/)
+[![CI](https://img.shields.io/github/actions/workflow/status/Greatbeing/yogacara-agent/release.yml?label=CI)](https://github.com/Greatbeing/yogacara-agent/actions)
+
+将佛教唯识学“八识”认知架构工程化为可计算、可演化、可对齐的 AI Agent 系统。支持快慢双循环决策、三性认知过滤、在线策略进化与跨仿真平台适配。
+
+## 🏗️ 架构总览
+```mermaid
+graph LR
+  A[环境/数字孪生] --> B(前五识: 多模态感知)
+  B --> C(第六识: 意识规划/LLM/工具路由)
+  C --> D(第七识: 末那控制器/元认知/安全过滤)
+  D --> E[执行器/动作输出]
+  E --> F[反馈流: Reward/评价/自检]
+  F --> G(第八识: 阿赖耶记忆/种子库/在线熏习)
+  G -. 种子生现行 .-> C
+  G -. 慢循环巩固 .-> G
+  D -. 转识成智: 反思/换向/对齐 .-> C
+```
+
+## ✨ 核心特性
+- 🧠 **八识计算映射**：感知→意识→末那调控→阿赖耶演化闭环
+- ⚡ **快慢双循环**：毫秒级决策 + 异步记忆巩固/参数微调
+- 🛡️ **三性判别机制**：遍计所执(幻觉过滤) / 依他起(因果追踪) / 圆成实(价值对齐)
+- 🔌 **生产级底座**：LangGraph 状态机 / FastAPI / Ray Serve / vLLM / K8s+Helm
+- 📊 **学术可验证**：在线实验流水线 / 95%置信区间 / 消融模板 / 一键出图
+- 🌐 **跨域适配**：ROS2 / Unity ML-Agents / Isaac Sim 统一环境契约
+
+## 🚀 快速开始
+```bash
+git clone https://github.com/Greatbeing/yogacara-agent.git
+cd yogacara-agent
+pip install -e ".[all]"
+python src/yogacara_test.py  # MVP验证（零依赖）
+```
+
+## 📦 模块说明
+| 模块 | 路径 | 功能 |
+|------|------|------|
+| MVP验证 | `src/yogacara_test.py` | 零依赖八识闭环跑通 |
+| 生产编排 | `src/yogacara_langgraph.py` | 异步双循环+工具路由 |
+| LLM接入 | `src/llm_planner.py` | Qwen/Llama结构化输出+降级 |
+| 记忆持久化 | `src/milvus_memory.py` | HNSW索引/元数据过滤/批量熏习 |
+| 在线对齐 | `src/online_alignment.py` | DPO+LoRA+EWC防遗忘 |
+| 安全加固 | `src/security/` | 注入防御/沙箱/限流/记忆守卫 |
+| 数字孪生 | `src/env_adapters/` | ROS2/Unity/Isaac统一接口 |
+| 实验自动化 | `src/exp_automator.py` | 多轮并行/置信区间/论文图表 |
+| 云原生部署 | `k8s/`, `helm/` | HPA扩缩容/ConfigMap热更/Ray拓扑 |
+
+## 📖 详细文档
+- [部署指南](docs/DEPLOYMENT.md)
+- [安全规范](docs/SECURITY.md)
+- [实验手册](docs/EXPERIMENTS.md)
+
+## 🤝 贡献指南
+详见 [CONTRIBUTING.md](CONTRIBUTING.md)
+
+## 📜 许可证
+Apache License 2.0。商业使用请保留版权声明。
+
+## 📚 Citation
+```bibtex
+@software{yogacara_agent_2026,
+  title = {Yogacara Agent: A Cognitive Evolution Framework for AI Agents},
+  author = {JueXin (Greatbeing)},
+  year = {2026},
+  url = {https://github.com/Greatbeing/yogacara-agent},
+  license = {Apache-2.0}
+}
+```

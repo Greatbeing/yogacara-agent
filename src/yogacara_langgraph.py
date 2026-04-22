@@ -21,16 +21,19 @@ random.seed(42)
 
 @tool
 def query_knowledge_base(query: str) -> str:
+    """Query the knowledge base for relevant experience strategies."""
     return f"[KB] 检索到与 '{query}' 相关的3条经验策略"
 
 
 @tool
 def call_external_api(endpoint: str, payload: dict) -> dict:
+    """Call an external API endpoint with the given payload."""
     return {"status": "success", "data": {"latency_ms": random.randint(20, 150)}}
 
 
 @tool
 def calculate_metric(metric_name: str, values: list[float]) -> float:
+    """Calculate a named metric from a list of values."""
     return sum(values) / len(values) if values else 0.0
 
 
@@ -187,13 +190,25 @@ async def node_perceive(state: YogacaraState) -> YogacaraState:
 
 async def node_plan(state: YogacaraState) -> YogacaraState:
     view = state["obs"]["grid_view"]
+    pos = state["obs"].get("pos", (0, 0))
+    # Distance heuristic: when no resource in local view, guide toward nearest resource
+    best_dir_r: str | None = None
+    best_dir_c: str | None = None
+    dist_bonus = 0.0
+    if not any(v == 1.0 for v in view) and env.resources:
+        nearest = min(env.resources, key=lambda r: abs(r[0] - pos[0]) + abs(r[1] - pos[1]))
+        best_dir_r = "DOWN" if nearest[0] > pos[0] else "UP" if nearest[0] < pos[0] else "STAY"
+        best_dir_c = "RIGHT" if nearest[1] > pos[1] else "LEFT" if nearest[1] < pos[1] else "STAY"
+        dist_bonus = 0.4  # per-direction bonus when approaching nearest resource
+
     scores = {}
     for a in ACTIONS:
         idx = ACTION_TO_IDX[a]
         base = view[idx] if 0 <= idx < 9 else -0.5
         pos_b = sum(s["rew"] * s["imp"] for s in state["seeds"] if s["act"] == a and s["rew"] > 0) * 0.8
         neg_p = sum(abs(s["rew"]) * s["imp"] for s in state["seeds"] if s["act"] == a and s["rew"] < 0) * 0.5
-        scores[a] = base + pos_b - neg_p + (0.25 if a != "STAY" else -0.8) + random.uniform(-0.03, 0.03)
+        approach = dist_bonus if best_dir_r is not None and a in (best_dir_r, best_dir_c) else 0.0
+        scores[a] = base + pos_b - neg_p + approach + (0.25 if a != "STAY" else -0.8) + random.uniform(-0.03, 0.03)
     best = max(scores, key=lambda k: scores[k])  # type: ignore[arg-type]
     unc = max(0.0, min(1.0, 1.0 - (scores[best] - min(scores.values())) / 2.0))
     state["action"] = best
