@@ -1,6 +1,21 @@
-__pycache__/ *.py[cod] *$py.class *.so .venv/ venv/ env/ *.egg-info/ dist/ build/
-*.pt *.pth *.bin *.safetensors lora_ckpt/ tmp/ ray_results/ serve_logs/
-.env .env.* config/secrets.yaml *.key *.pem
-.vscode/ .idea/ .DS_Store Thumbs.db
-logs/ experiments/*.csv experiments/*.pdf *.log
-docker-compose.override.yml
+```
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyc.*
+*.pyo.*
+*.egg-info/
+.eggs/
+.egg/
+
+# Coverage
+.coverage
+coverage/
+htmlcov/
+
+# Tests
+.pytest_cache/
+.tox/
+```
