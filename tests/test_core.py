@@ -122,30 +122,30 @@ class TestManasController:
         assert final_action in ["UP", "DOWN", "LEFT", "RIGHT", "STAY"]
 
 
-class TestSixthConsciousness:
+class TestConsciousnessPlanner:
     """测试第六识规划器"""
 
     def test_plan_with_empty_seeds(self):
         """测试无经验时的规划"""
-        from yogacara_test import SixthConsciousness
+        from yogacara_test import ConsciousnessPlanner
 
-        sixth = SixthConsciousness()
+        planner = ConsciousnessPlanner()
         obs = {"pos": (5, 5), "grid_view": [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "step": 10}
         seeds = []
 
-        action, unc, causal = sixth.plan(obs, seeds)
+        action, unc, causal = planner.plan(obs, seeds)
         assert action in ["UP", "DOWN", "LEFT", "RIGHT", "STAY"]
         assert 0.0 <= unc <= 1.0
 
     def test_plan_uses_experience(self):
         """测试使用经验规划"""
-        from yogacara_test import SixthConsciousness, Seed
+        from yogacara_test import ConsciousnessPlanner, Seed
 
-        sixth = SixthConsciousness()
+        planner = ConsciousnessPlanner()
         obs = {"pos": (5, 5), "grid_view": [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "step": 10}
         seeds = [Seed(state_emb=[0.5] * 11, action="UP", reward=5.0, timestamp=0.0, importance=2.0)]
 
-        action, unc, causal = sixth.plan(obs, seeds)
+        action, unc, causal = planner.plan(obs, seeds)
         assert action in ["UP", "DOWN", "LEFT", "RIGHT", "STAY"]
 
 
@@ -154,12 +154,12 @@ class TestFullEpisode:
 
     def test_run_episode(self):
         """测试运行一个完整回合"""
-        from yogacara_test import GridSimEnv, AlayaMemory, ManasController, SixthConsciousness
+        from yogacara_test import GridSimEnv, AlayaMemory, ManasController, ConsciousnessPlanner
 
         env = GridSimEnv()
         memory = AlayaMemory()
         manas = ManasController()
-        planner = SixthConsciousness()
+        planner = ConsciousnessPlanner()
 
         obs = env.reset()
         total_reward = 0.0
