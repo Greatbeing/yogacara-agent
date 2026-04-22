@@ -1,12 +1,16 @@
 import asyncio
 import logging
 import os
+import sys
+
+# Add src directory to path for imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 import numpy as np
 import pandas as pd
 from tqdm.asyncio import tqdm_asyncio
 
-from yogacara_langgraph import build_graph, create_session
+from yogacara_agent.yogacara_langgraph import build_graph, create_session
 
 logger = logging.getLogger(__name__)
 

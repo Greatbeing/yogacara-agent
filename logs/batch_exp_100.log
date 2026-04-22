@@ -1,0 +1,119 @@
+OpenBLAS WARNING - could not determine the L2 cache size on this system, assuming 256k
+🧪 运行实验轮次:   0%|          | 0/100 [00:00<?, ?it/s]🧪 运行实验轮次:   1%|          | 1/100 [00:00<01:26,  1.15it/s]🧪 运行实验轮次:  42%|████▏     | 42/100 [00:01<00:01, 52.15it/s]🧪 运行实验轮次: 100%|██████████| 100/100 [00:01<00:00, 94.15it/s]
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[33m[末那拦截] 风险:1.0 停滞:False 循环:False → 换向:UP[0m
+
+============================================================
+📊 100 次批量实验完成！
+============================================================
+总实验轮次：100
+最大步数：60
+数据保存路径：./experiments/
+
+=== 统计摘要 (前 20 步) ===
+   step  mean_reward  std_reward  intercept_rate  ci_lower  ci_upper
+0     1    -0.049000    0.510000        0.000000 -0.148960  0.050960
+1     2    -0.113559    0.663963        0.016949 -0.243696  0.016578
+
+=== 关键指标 ===
+平均最终奖励：-0.11
+95% 置信区间：[-0.24, 0.02]
