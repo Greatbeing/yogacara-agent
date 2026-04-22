@@ -1,0 +1,2 @@
+step,mean_reward,std_reward,intercept_rate,ci_lower,ci_upper
+1,-0.10000000000000002,0.0,0.0,-0.10000000000000002,-0.10000000000000002
