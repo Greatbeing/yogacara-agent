@@ -4,7 +4,7 @@ import os
 import sys
 
 # Add src directory to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import numpy as np
 import pandas as pd
@@ -46,7 +46,7 @@ class ExperimentAutomator:
         prev_step = 0
         try:
             # Use stream_mode to capture intermediate states per node
-            async for event in self.graph.astream(state, stream_mode="values"):
+            async for event in self.graph.astream(state, stream_mode="values"):  # type: ignore[call-overload]
                 current_step = event.get("step", 0)
                 # Log only when a new step completes (execute node ran)
                 if current_step > prev_step:

@@ -4,6 +4,7 @@ Yogacara Agent 核心模块单元测试
 
 import os
 import sys
+from collections import deque
 
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
@@ -14,7 +15,7 @@ class TestGridSimEnv:
 
     def test_reset(self):
         """测试环境重置"""
-        from yogacara_test import GridSimEnv
+        from yogacara_agent.yogacara_test import GridSimEnv
 
         env = GridSimEnv()
         obs = env.reset()
@@ -24,7 +25,7 @@ class TestGridSimEnv:
 
     def test_step_movement(self):
         """测试移动动作"""
-        from yogacara_test import GridSimEnv
+        from yogacara_agent.yogacara_test import GridSimEnv
 
         env = GridSimEnv()
         env.reset()
@@ -43,7 +44,7 @@ class TestGridSimEnv:
 
     def test_step_rewards(self):
         """测试奖励机制"""
-        from yogacara_test import GridSimEnv
+        from yogacara_agent.yogacara_test import GridSimEnv
 
         env = GridSimEnv()
         env.reset()
@@ -64,7 +65,7 @@ class TestAlayaMemory:
 
     def test_memory_add_and_retrieve(self):
         """测试记忆添加与检索"""
-        from yogacara_test import AlayaMemory, Seed
+        from yogacara_agent.yogacara_test import AlayaMemory, Seed
 
         memory = AlayaMemory()
         obs = {"pos": (5, 5), "grid_view": [0.0] * 9, "step": 10}
@@ -88,13 +89,11 @@ class TestManasController:
 
     def test_manas_filter_safe_action(self):
         """测试安全动作通过"""
-        from yogacara_test import ManasController
-        from collections import deque
+        from yogacara_agent.yogacara_test import ManasController
 
         manas = ManasController()
         action = "RIGHT"
         uncertainty = 0.3
-        seeds = []
         recent_rewards = deque([0.5, 0.3, 0.4], maxlen=5)
         pos_history = deque([(0, 0), (0, 1), (0, 2)], maxlen=5)
         obs = {"grid_view": [0.0] * 9, "pos": (0, 0), "step": 5}
@@ -106,13 +105,11 @@ class TestManasController:
 
     def test_manas_filter_high_uncertainty(self):
         """测试高不确定性触发反思"""
-        from yogacara_test import ManasController
-        from collections import deque
+        from yogacara_agent.yogacara_test import ManasController
 
         manas = ManasController()
         action = "RIGHT"
         uncertainty = 0.95  # Very high uncertainty
-        seeds = []
         recent_rewards = deque([0.5, 0.3, 0.4], maxlen=5)
         pos_history = deque([(0, 0), (0, 1), (0, 2)], maxlen=5)
         obs = {"grid_view": [0.0] * 9, "pos": (0, 0), "step": 20}
@@ -127,7 +124,7 @@ class TestConsciousnessPlanner:
 
     def test_plan_with_empty_seeds(self):
         """测试无经验时的规划"""
-        from yogacara_test import ConsciousnessPlanner
+        from yogacara_agent.yogacara_test import ConsciousnessPlanner
 
         planner = ConsciousnessPlanner()
         obs = {"pos": (5, 5), "grid_view": [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "step": 10}
@@ -139,7 +136,7 @@ class TestConsciousnessPlanner:
 
     def test_plan_uses_experience(self):
         """测试使用经验规划"""
-        from yogacara_test import ConsciousnessPlanner, Seed
+        from yogacara_agent.yogacara_test import ConsciousnessPlanner, Seed
 
         planner = ConsciousnessPlanner()
         obs = {"pos": (5, 5), "grid_view": [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "step": 10}
@@ -154,7 +151,7 @@ class TestFullEpisode:
 
     def test_run_episode(self):
         """测试运行一个完整回合"""
-        from yogacara_test import GridSimEnv, AlayaMemory, ManasController, ConsciousnessPlanner
+        from yogacara_agent.yogacara_test import GridSimEnv, AlayaMemory, ManasController, ConsciousnessPlanner
 
         env = GridSimEnv()
         memory = AlayaMemory()
@@ -169,8 +166,6 @@ class TestFullEpisode:
         while steps < max_steps:
             seeds = memory.retrieve(obs, k=3)
             action, unc, causal = planner.plan(obs, seeds)
-            from collections import deque
-
             final_action, passed, log = manas.filter(
                 action, obs, unc, steps, deque([0.0] * 5, maxlen=5), deque([(0, 0)] * 5, maxlen=5)
             )
