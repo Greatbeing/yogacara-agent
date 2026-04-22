@@ -1,0 +1,3 @@
+[console_scripts]
+yogacara-exp = src.exp_automator:main
+yogacara-run = src.cli:main

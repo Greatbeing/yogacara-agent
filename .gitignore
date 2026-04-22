@@ -4,18 +4,35 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-*.pyc.*
-*.pyo.*
 *.egg-info/
-.eggs/
-.egg/
-
-# Coverage
+.Python
+*.so
 .coverage
 coverage/
-htmlcov/
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Logs
+*.log
+logs/
 
 # Tests
 .pytest_cache/
-.tox/
+.mypy_cache/
+
+# Build artifacts
+dist/
+build/
+target/
+
+# OS generated
+.DS_Store
+Thumbs.db
+
+# Data files
+*.csv
+*.pdf
 ```
