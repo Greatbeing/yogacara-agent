@@ -1,6 +1,69 @@
-__pycache__/ *.py[cod] *$py.class *.so .venv/ venv/ env/ *.egg-info/ dist/ build/
-*.pt *.pth *.bin *.safetensors lora_ckpt/ tmp/ ray_results/ serve_logs/
-.env .env.* config/secrets.yaml *.key *.pem
-.vscode/ .idea/ .DS_Store Thumbs.db
-logs/ experiments/*.csv experiments/*.pdf *.log
-docker-compose.override.yml
+```
+# Compiled and build artifacts
+*.pyc
+__pycache__/
+*.o
+*.obj
+*.class
+*.exe
+*.dll
+*.so
+*.a
+*.out
+dist/
+build/
+target/
+
+# Dependencies
+.venv/
+venv/
+node_modules/
+.mypy_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+coverage/
+
+# Logs and temp files
+*.log
+*.tmp
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+*.env.*
+
+# Editors
+.vscode/
+.idea/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Common compressed files
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
+```
