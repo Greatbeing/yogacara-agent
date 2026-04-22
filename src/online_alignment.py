@@ -35,8 +35,8 @@ class OnlineAlignmentManager:
         for n, p in self.model.named_parameters():
             if p.requires_grad:
                 self.fisher_diag[n].zero_()
-        trainer = DPOTrainer(  # type: ignore[call-arg, arg-type]
-            model=self.model,
+        trainer = DPOTrainer(
+            model=self.model,  # type: ignore[arg-type]
             ref_model=None,
             args=DPOConfig(output_dir="./tmp", max_steps=1, per_device_train_batch_size=2),
             train_dataset=dataset,
@@ -69,8 +69,8 @@ class OnlineAlignmentManager:
                     )
                     return loss + ewc_lambda * ewc_loss
 
-            trainer = EWC_DPOTrainer(  # type: ignore[call-arg, arg-type]
-                model=self.model,
+            trainer = EWC_DPOTrainer(
+                model=self.model,  # type: ignore[arg-type]
                 ref_model=None,
                 args=DPOConfig(
                     output_dir="./lora_online",
