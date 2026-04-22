@@ -8,7 +8,7 @@ import sys
 import os
 
 # 添加路径
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from yogacara_agent.turning_consciousness import (
     Seed, 
