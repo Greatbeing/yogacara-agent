@@ -97,13 +97,39 @@ graph LR
 - 🌐 **跨域适配**：ROS2 / Unity ML-Agents / Isaac Sim 统一环境契约
 
 ## 🚀 快速开始
+
+### 方式一：使用外部 API（推荐，无需本地 GPU）
 ```bash
 git clone https://github.com/Greatbeing/yogacara-agent.git
 cd yogacara-agent
-pip install -e ".[all]"
-python src/yogacara_test.py  # MVP验证（零依赖）
+
+# 配置 API Key（以 DeepSeek 为例）
+export LLM_BASE_URL="https://api.deepseek.com/v1"
+export LLM_API_KEY="sk-your-api-key"
+export LLM_MODEL="deepseek-chat"
+
+# 安装轻量依赖（仅需 openai, langgraph 等小库）
+pip install openai langgraph langchain-core fastapi python-dotenv
+
+# 运行测试
+python src/yogacara_test.py
 ```
 
+**优势**：
+- ✅ 无需安装 transformers/vllm 等大型库
+- ✅ 504MB 存储限制下完美运行
+- ✅ 成本可控（¥10 内完成百次实验）
+- ✅ 内置降级保护（API 失败自动切换启发式算法）
+
+详见：[外部 API 调用指南](EXTERNAL_API_GUIDE.md)
+
+### 方式二：本地完整安装（需 GPU + 大存储）
+```bash
+git clone https://github.com/Greatbeing/yogacara-agent.git
+cd yogacara-agent
+pip install -e ".[all]"  # 包含 transformers, vllm, peft 等
+python src/yogacara_test.py  # MVP 验证
+```
 ## 📦 模块说明
 | 模块 | 路径 | 功能 |
 |------|------|------|

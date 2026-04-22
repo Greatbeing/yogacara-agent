@@ -33,8 +33,8 @@ plot = ["matplotlib>=3.7.0", "seaborn>=0.12.0", "pandas>=2.0.0", "tqdm>=4.65.0"]
 all = ["yogacara-agent[dev,llm,memory,serve,plot]"]
 
 [project.scripts]
-yogacara-run = "src.cli:main"
-yogacara-exp = "src.exp_automator:main"
+yogacara-run = "yogacara_agent.api_server:main"
+yogacara-exp = "yogacara_agent.exp_automator:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
