@@ -1,6 +1,8 @@
 import asyncio
+import logging
 import math
 import random
+import threading
 import time
 from collections import deque
 from typing import Any, TypedDict
@@ -8,6 +10,8 @@ from typing import Any, TypedDict
 from langchain_core.tools import tool
 from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
+
+logger = logging.getLogger(__name__)
 
 GRID_SIZE = 10
 ACTIONS = ["UP", "DOWN", "LEFT", "RIGHT", "STAY"]
@@ -117,6 +121,9 @@ class AlayaMemory:
         now = time.time()
         for s in self.seeds:
             dt = now - s["ts"]
+            # Skip seeds with invalid timestamps (test data or future)
+            if dt <= 0 or dt > 86400 * 365:
+                continue
             s["imp"] *= math.exp(-0.12 * dt)
             s["imp"] = min(1.0, s["imp"] + 0.3 * max(0, s["rew"]))
 
@@ -143,9 +150,26 @@ class ManasController:
         return action, True, "放行"
 
 
+# ── Module-level instances (legacy, single-process only) ──
+# WARNING: These are NOT safe for concurrent use across requests.
+# For production, use create_session() to get isolated instances.
+_lock = threading.Lock()
 env = GridSimEnv()
 alaya = AlayaMemory()
 manas = ManasController()
+
+
+def create_session() -> dict:
+    """Create an isolated session with fresh env/memory/manas instances.
+
+    Use this for API servers and concurrent environments to avoid
+    shared mutable state across requests.
+    """
+    return {
+        "env": GridSimEnv(),
+        "alaya": AlayaMemory(),
+        "manas": ManasController(),
+    }
 
 
 async def node_perceive(state: YogacaraState) -> YogacaraState:

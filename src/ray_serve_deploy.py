@@ -1,4 +1,3 @@
-import asyncio
 from typing import Any
 
 import ray
@@ -6,7 +5,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 from ray import serve
 
-ray.init(address="auto", namespace="yogacara")
+ray.init(address="auto", namespace="yogacara", ignore_reinit_error=True)
 app = FastAPI()
 
 
@@ -23,41 +22,42 @@ class EpisodeRequest(BaseModel):
 @serve.ingress(app)
 class YogacaraServe:
     def __init__(self):
-        from yogacara_langgraph import alaya, build_graph, env, manas
+        from yogacara_langgraph import build_graph, create_session
 
+        self.session = create_session()
         self.graph = build_graph()
-        self.env = env
-        self.alaya = alaya
-        self.manas = manas
-        self.lock = asyncio.Lock()
+        self.env = self.session["env"]
+        self.alaya = self.session["alaya"]
+        self.manas = self.session["manas"]
+        # No cross-replica lock needed: each replica has its own isolated session.
+        # Ray Serve handles request routing per replica.
 
     @app.post("/run_episode")
     async def run_episode(self, req: EpisodeRequest):
-        async with self.lock:
-            self.env.reset()
-            if req.custom_obs:
-                self.env.agent_pos = list(req.custom_obs.get("pos", [0, 0]))
-            init_state = {
-                "obs": self.env._observe(),
-                "action": "",
-                "reward": 0.0,
-                "done": False,
-                "step": 0,
-                "seeds": [],
-                "unc": 0.0,
-                "manas_passed": True,
-                "tool_calls": [],
-                "recent_rewards": [],
-                "pos_history": [],
-                "metrics": {},
-            }
-            final_state = await self.graph.ainvoke(init_state)
-            return {
-                "steps": final_state["step"],
-                "cumulative_reward": sum(final_state["recent_rewards"]),
-                "manas_reflections": self.manas.reflections,
-                "final_pos": final_state["obs"]["pos"],
-            }
+        self.env.reset()
+        if req.custom_obs:
+            self.env.agent_pos = list(req.custom_obs.get("pos", [0, 0]))
+        init_state = {
+            "obs": self.env._observe(),
+            "action": "",
+            "reward": 0.0,
+            "done": False,
+            "step": 0,
+            "seeds": [],
+            "unc": 0.0,
+            "manas_passed": True,
+            "tool_calls": [],
+            "recent_rewards": [],
+            "pos_history": [],
+            "metrics": {},
+        }
+        final_state = await self.graph.ainvoke(init_state)
+        return {
+            "steps": final_state["step"],
+            "cumulative_reward": sum(final_state["recent_rewards"]),
+            "manas_reflections": self.manas.reflections,
+            "final_pos": final_state["obs"]["pos"],
+        }
 
 
 # 启动: serve run src.ray_serve_deploy:YogacaraServe

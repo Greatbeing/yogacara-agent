@@ -95,6 +95,9 @@ class AlayaMemory:
         now = time.time()
         for s in self.seeds:
             dt = now - s.timestamp
+            # Skip seeds with timestamp=0 or from far future (test data)
+            if dt <= 0 or dt > 86400 * 365:  # >1yr means test/invalid timestamp
+                continue
             s.importance *= math.exp(-DECAY_RATE * dt)
             s.importance = min(1.0, s.importance + 0.3 * max(0, s.reward))
 

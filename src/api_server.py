@@ -1,6 +1,7 @@
 import asyncio
 import os
 import sys
+from contextlib import asynccontextmanager
 from typing import Any
 
 import uvicorn
@@ -10,8 +11,6 @@ from pydantic import BaseModel
 sys.path.append(os.path.dirname(__file__))
 from yogacara_langgraph import alaya, build_graph, env, manas, slow_loop
 
-app = FastAPI(title="唯识进化框架 API", version="1.1.0")
-graph = build_graph()
 loop_started = False
 
 
@@ -20,12 +19,18 @@ class AgentRequest(BaseModel):
     custom_obs: dict[str, Any] | None = None
 
 
-@app.on_event("startup")
-async def startup_event():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """FastAPI lifespan: start background tasks on startup."""
     global loop_started
     if not loop_started:
         asyncio.create_task(slow_loop(alaya, interval=10))
         loop_started = True
+    yield
+
+
+app = FastAPI(title="唯识进化框架 API", version="1.1.0", lifespan=lifespan)
+graph = build_graph()
 
 
 @app.post("/run_episode")

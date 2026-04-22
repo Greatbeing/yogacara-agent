@@ -20,6 +20,12 @@ class ExperimentAutomator:
         self.graph = build_graph()
 
     async def _run_single_episode(self, ep_id: int) -> dict:
+        """Run a single episode using ainvoke which runs the full graph to completion.
+
+        The LangGraph graph already contains the episode loop (perceive→plan→manas→
+        execute→store→check_done→perceive/END), so a single ainvoke call runs the
+        entire episode. We capture per-step data via a streaming callback.
+        """
         env.reset()
         state = {
             "obs": env._observe(),
@@ -36,22 +42,27 @@ class ExperimentAutomator:
             "metrics": {},
         }
         step_log = []
+        prev_step = 0
         try:
-            while not state["done"] and state["step"] < self.max_steps:
-                state = await self.graph.ainvoke(state)
-                step_log.append(
-                    {
-                        "episode": ep_id,
-                        "step": state["step"],
-                        "reward": state["reward"],
-                        "cum_reward": sum(state["recent_rewards"]),
-                        "intercepted": not state["manas_passed"],
-                        "unc": state["unc"],
-                    }
-                )
+            # Use stream_mode to capture intermediate states per node
+            async for event in self.graph.astream(state, stream_mode="values"):
+                current_step = event.get("step", 0)
+                # Log only when a new step completes (execute node ran)
+                if current_step > prev_step:
+                    step_log.append(
+                        {
+                            "episode": ep_id,
+                            "step": current_step,
+                            "reward": event.get("reward", 0.0),
+                            "cum_reward": sum(event.get("recent_rewards", [0.0])),
+                            "intercepted": not event.get("manas_passed", True),
+                            "unc": event.get("unc", 0.0),
+                        }
+                    )
+                    prev_step = current_step
         except Exception as e:
             logger.warning(f"Episode {ep_id} 异常终止: {e}")
-        return {"ep_id": ep_id, "steps": state["step"], "log": step_log}
+        return {"ep_id": ep_id, "steps": prev_step, "log": step_log}
 
     async def run_all(self) -> pd.DataFrame:
         tasks = [self._run_single_episode(i) for i in range(self.num_episodes)]
