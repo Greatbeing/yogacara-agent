@@ -18,22 +18,26 @@ class Seed:
     action: str
     reward: float
     timestamp: float
-    importance: float = 1.0
+    importance: float = 0.8  # [0.0, 1.0] — validated by MemoryGuard
     alignment_score: float = 0.5
     uncertainty: float = 0.0
     causal_tag: str = "依他起"
 
 
 class GridSimEnv:
+    _INITIAL_RESOURCES = [(7, 7), (3, 8), (8, 2)]
+    _TRAPS = [(4, 4), (6, 1), (2, 6)]
+
     def __init__(self):
         self.agent_pos = [0, 0]
-        self.resources = [(7, 7), (3, 8), (8, 2)]
-        self.traps = [(4, 4), (6, 1), (2, 6)]
+        self.resources = list(self._INITIAL_RESOURCES)
+        self.traps = list(self._TRAPS)
         self.step_count = 0
         self.done = False
 
     def reset(self):
         self.agent_pos = [0, 0]
+        self.resources = list(self._INITIAL_RESOURCES)
         self.step_count = 0
         self.done = False
         return self._observe()

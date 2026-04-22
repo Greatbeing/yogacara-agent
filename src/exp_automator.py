@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from tqdm.asyncio import tqdm_asyncio
 
-from yogacara_langgraph import build_graph, env
+from yogacara_langgraph import build_graph, create_session
 
 logger = logging.getLogger(__name__)
 
@@ -20,12 +20,9 @@ class ExperimentAutomator:
         self.graph = build_graph()
 
     async def _run_single_episode(self, ep_id: int) -> dict:
-        """Run a single episode using ainvoke which runs the full graph to completion.
-
-        The LangGraph graph already contains the episode loop (perceive→plan→manas→
-        execute→store→check_done→perceive/END), so a single ainvoke call runs the
-        entire episode. We capture per-step data via a streaming callback.
-        """
+        """Run a single episode using isolated session instances."""
+        session = create_session()
+        env = session["env"]
         env.reset()
         state = {
             "obs": env._observe(),

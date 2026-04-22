@@ -89,5 +89,6 @@ class MilvusMemory:
             imp = min(1.0, imp + reward_boost * max(0, row["rew"]))
             ids.append(row["id"])
             new_imps.append(imp)
-        self.collection.upsert([ids, new_imps], ["id", "imp"])
+        # Milvus upsert uses dict format: {"field_name": [values...]}
+        self.collection.upsert({"id": ids, "imp": new_imps})
         logger.info(f"🔄 Milvus熏习完成: 更新 {len(ids)} 条")

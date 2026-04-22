@@ -54,15 +54,19 @@ class YogacaraState(TypedDict):
 
 
 class GridSimEnv:
+    _INITIAL_RESOURCES = [(7, 7), (3, 8), (8, 2)]
+    _TRAPS = [(4, 4), (6, 1), (2, 6)]
+
     def __init__(self):
         self.agent_pos = [0, 0]
-        self.resources = [(7, 7), (3, 8), (8, 2)]
-        self.traps = [(4, 4), (6, 1), (2, 6)]
+        self.resources = list(self._INITIAL_RESOURCES)  # copy to allow mutation
+        self.traps = list(self._TRAPS)
         self.step_count = 0
         self.done = False
 
     def reset(self):
         self.agent_pos = [0, 0]
+        self.resources = list(self._INITIAL_RESOURCES)  # restore all resources
         self.step_count = 0
         self.done = False
         return self._observe()
@@ -173,7 +177,10 @@ def create_session() -> dict:
 
 
 async def node_perceive(state: YogacaraState) -> YogacaraState:
-    state["obs"] = env._observe()
+    # Use the obs from the previous step (already updated by node_execute).
+    # Only re-observe if this is the first step (obs has no meaningful data).
+    if state["step"] == 0 and not state["obs"].get("pos"):
+        state["obs"] = env._observe()
     state["seeds"] = alaya.retrieve(state["obs"])
     return state
 
@@ -270,9 +277,13 @@ def build_graph() -> CompiledStateGraph[YogacaraState, None, YogacaraState]:
 
 
 async def slow_loop(alaya_mem, interval=10):
-    while not env.done:
+    """Background task for periodic memory consolidation.
+
+    Runs indefinitely regardless of episode state — perfume_update is idempotent
+    and safe to call even when no episode is active.
+    """
+    while True:
         await asyncio.sleep(interval)
-        print("\033[35m🔄 [异步慢循环] 阿赖耶熏习巩固\033[0m")
         alaya_mem.perfume_update()
 
 

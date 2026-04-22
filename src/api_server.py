@@ -9,9 +9,17 @@ from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
 sys.path.append(os.path.dirname(__file__))
-from yogacara_langgraph import alaya, build_graph, env, manas, slow_loop
+from yogacara_langgraph import build_graph, create_session, slow_loop
 
+_app_session = None
 loop_started = False
+
+
+def _get_session():
+    global _app_session
+    if _app_session is None:
+        _app_session = create_session()
+    return _app_session
 
 
 class AgentRequest(BaseModel):
@@ -24,17 +32,21 @@ async def lifespan(app: FastAPI):
     """FastAPI lifespan: start background tasks on startup."""
     global loop_started
     if not loop_started:
-        asyncio.create_task(slow_loop(alaya, interval=10))
+        session = _get_session()
+        asyncio.create_task(slow_loop(session["alaya"], interval=10))
         loop_started = True
     yield
 
 
-app = FastAPI(title="唯识进化框架 API", version="1.1.0", lifespan=lifespan)
+app = FastAPI(title="唯识进化框架 API", version="1.2.0", lifespan=lifespan)
 graph = build_graph()
 
 
 @app.post("/run_episode")
 async def run_episode(req: AgentRequest, request: Request):
+    session = _get_session()
+    env = session["env"]
+    manas = session["manas"]
     try:
         env.reset()
         if req.custom_obs:
@@ -68,6 +80,9 @@ async def run_episode(req: AgentRequest, request: Request):
 
 @app.get("/health")
 async def health():
+    session = _get_session()
+    alaya = session["alaya"]
+    manas = session["manas"]
     return {"status": "ok", "memory_seeds": len(alaya.seeds), "manas_reflections": manas.reflections}
 
 

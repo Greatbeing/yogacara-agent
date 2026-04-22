@@ -30,6 +30,6 @@ class InputSanitizer:
     def validate_obs(self, obs: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(obs.get("grid_view"), list) or len(obs["grid_view"]) != 9:
             raise ValueError("🚫 观测数据格式非法")
-        if not isinstance(obs.get("pos"), tuple) or len(obs["pos"]) != 2:
+        if not isinstance(obs.get("pos"), (tuple, list)) or len(obs["pos"]) != 2:
             raise ValueError("🚫 位置数据格式非法")
         return obs
