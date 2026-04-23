@@ -171,6 +171,16 @@ manas = ManasController()
 # 转识成智 Phase1 新增模块
 introspection_logger = None  # lazy init to avoid circular import
 ego_monitor = None
+seed_classifier = None  # lazy init
+_seed_counts = {"名言种": 0, "业种": 0, "异熟种": 0}  # Phase1-2 seed type counter
+
+
+def _get_seed_classifier():
+    global seed_classifier
+    if seed_classifier is None:
+        from yogacara_agent.seed_classifier import SeedClassifier
+        seed_classifier = SeedClassifier()
+    return seed_classifier
 
 
 def _get_introspection_logger():
@@ -373,35 +383,53 @@ async def node_execute(state: YogacaraState) -> YogacaraState:
 
 
 async def node_store(state: YogacaraState) -> YogacaraState:
-    # 基于内省数据改进种子标签
+    """Store with seed classification - Phase1-2 upgrade."""
+    global _seed_counts
+    classifier = _get_seed_classifier()
     int_rec = state.get("introspection_record")
-    if int_rec:
-        nature = int_rec.get("nature", "依他起")
-        markers = int_rec.get("ego_markers", [])
-        if markers:
-            align = 0.3
-        elif int_rec.get("unc", 1.0) < 0.3:
-            align = 0.9
-        else:
-            align = 0.7
-    else:
-        nature = "依他起" if state["unc"] < 0.5 else "遍计所执"
-        align = 1.0 if state["manas_passed"] else 0.4
-
-    alaya.add(
-        {
-            "emb": alaya._encode(state["obs"]),
-            "act": state["action"],
-            "rew": state["reward"],
-            "ts": time.time(),
-            "imp": 0.8,
-            "align": align,
-            "unc": state["unc"],
-            "tag": nature,
-        }
+    # Determine nature and ego markers from introspection
+    nature = int_rec.get("nature", "依他起") if int_rec else ("依他起" if state["unc"] < 0.5 else "遍计所执")
+    ego_markers = int_rec.get("ego_markers", []) if int_rec else []
+    # Classify the seed
+    classification = classifier.classify(
+        action=state["action"],
+        reward=state["reward"],
+        unc=state["unc"],
+        nature=nature,
+        ego_markers=ego_markers,
+        step=state["step"],
+        manas_intercepted=not state["manas_passed"],
     )
-    return state
+    # Track seed type counts
+    if classification.seed_type in _seed_counts:
+        _seed_counts[classification.seed_type] += 1
 
+    # Inject classification into state for ego_monitor visibility
+    if int_rec is None:
+        state["introspection_record"] = {
+            "step": state["step"],
+            "nature": classification.seed_type,
+            "ego_markers": ego_markers,
+            "unc": state["unc"],
+            "decision_gap": 0.0,
+            "reasoning": classification.note,
+            "seed_type": classification.seed_type,
+            "seed_align": classification.align,
+        }
+    # Store seed with classified align and tag
+    is_vipaka = classification.seed_type == "异熟种"
+    seed_tag = f"{classification.seed_type}_{classification.subtype}" if is_vipaka else classification.tag
+    alaya.add({
+        "emb": alaya._encode(state["obs"]),
+        "act": state["action"],
+        "rew": state["reward"],
+        "ts": time.time(),
+        "imp": 0.8 if is_vipaka else classification.align,
+        "align": classification.align,
+        "unc": state["unc"],
+        "tag": seed_tag,
+    })
+    return state
 
 def check_done(state: YogacaraState) -> str:
     return "end" if state["done"] else "continue"
@@ -439,7 +467,7 @@ async def slow_loop(alaya_mem, interval=10):
 
 
 async def main():
-    print("\n\033[36m~ 唯识进化框架 LangGraph 版（转识成智 Phase1）~\033[0m")
+    print("\n\033[36m~ 唯识进化框架 LangGraph 版（转识成智 Phase2-2）~\033[0m")
     # 初始化内省系统（lazy init 避免循环导入）
     _get_introspection_logger()
     graph = build_graph()
@@ -483,6 +511,12 @@ async def main():
         f"  三性: 圆成实{summary['nature_distribution']['圆成实']} | 依他起{summary['nature_distribution']['依他起']} | 遍计所执{summary['nature_distribution']['遍计所执']}"
     )
     print(f"  我执模式: {summary['ego_patterns']}  末那拦截率:{summary['intercept_rate']:.0%}")
+    # 种子分类统计
+    total = sum(_seed_counts.values())
+    print("\n\033[36m~ 种子分类统计（全程）~\033[0m")
+    print(f"  名言种: {_seed_counts['名言种']} | 业种: {_seed_counts['业种']} | 异熟种: {_seed_counts['异熟种']}")
+    if total > 0:
+        print(f"  占比: 名言{_seed_counts['名言种']*100//total}% | 业{_seed_counts['业种']*100//total}% | 异熟{_seed_counts['异熟种']*100//total}%")
 
 
 if __name__ == "__main__":
