@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import logging
 import os
@@ -13,6 +14,14 @@ from tqdm.asyncio import tqdm_asyncio
 from yogacara_agent.yogacara_langgraph import build_graph, create_session
 
 logger = logging.getLogger(__name__)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="唯识进化实验自动运行器")
+    parser.add_argument("-n", "--episodes", type=int, default=30, help="实验轮次数（默认30）")
+    parser.add_argument("-s", "--max-steps", type=int, default=60, help="每轮最大步数（默认60）")
+    parser.add_argument("-o", "--output", default="./experiments", help="输出目录（默认./experiments）")
+    return parser.parse_args()
 
 
 class ExperimentAutomator:
@@ -108,7 +117,12 @@ class ExperimentAutomator:
 
 
 async def main():
-    automator = ExperimentAutomator(num_episodes=30, max_steps=60)
+    args = parse_args()
+    automator = ExperimentAutomator(
+        num_episodes=args.episodes,
+        max_steps=args.max_steps,
+        output_dir=args.output,
+    )
     stats = await automator.run_all()
     automator.generate_paper_figures(stats)
 

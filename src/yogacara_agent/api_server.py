@@ -1,6 +1,7 @@
 import asyncio
 import os
 import sys
+import threading
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -87,8 +88,29 @@ async def health():
 
 
 async def main():
-    uvicorn.run("yogacara_agent.api_server:app", host="0.0.0.0", port=8000, reload=False)
+    import uvicorn
+
+    # Detect if we're already inside an event loop (e.g., running under OpenClaw)
+    try:
+        asyncio.get_running_loop()
+        # Already in a loop: run uvicorn in a separate thread to avoid conflicts
+        def run_server():
+            import uvicorn
+
+            uvicorn.run(
+                "yogacara_agent.api_server:app",
+                host="0.0.0.0",
+                port=8000,
+                reload=False,
+            )
+
+        t = threading.Thread(target=run_server, daemon=True)
+        t.start()
+        t.join()
+    except RuntimeError:
+        # No running loop: safe to use asyncio.run()
+        uvicorn.run("yogacara_agent.api_server:app", host="0.0.0.0", port=8000, reload=False)
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
