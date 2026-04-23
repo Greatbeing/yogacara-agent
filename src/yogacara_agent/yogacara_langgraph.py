@@ -22,7 +22,7 @@ random.seed(42)
 @tool
 def query_knowledge_base(query: str) -> str:
     """Query the knowledge base for relevant experience strategies."""
-    return f"[KB] 检索到与 '{query}' 相关的3条经验策略"
+    return f"[KB] Found 3 strategies related to '{query}'"
 
 
 @tool
@@ -54,6 +54,11 @@ class YogacaraState(TypedDict):
     recent_rewards: list[float]
     pos_history: list[tuple[int, int]]
     metrics: dict[str, float]
+    # 转识成智新增字段
+    introspection_record: dict | None
+    ego_alert: dict | None
+    plan_scores: dict | None
+    reasoning: str
 
 
 class GridSimEnv:
@@ -62,14 +67,14 @@ class GridSimEnv:
 
     def __init__(self):
         self.agent_pos = [0, 0]
-        self.resources = list(self._INITIAL_RESOURCES)  # copy to allow mutation
+        self.resources = list(self._INITIAL_RESOURCES)
         self.traps = list(self._TRAPS)
         self.step_count = 0
         self.done = False
 
     def reset(self):
         self.agent_pos = [0, 0]
-        self.resources = list(self._INITIAL_RESOURCES)  # restore all resources
+        self.resources = list(self._INITIAL_RESOURCES)
         self.step_count = 0
         self.done = False
         return self._observe()
@@ -128,7 +133,6 @@ class AlayaMemory:
         now = time.time()
         for s in self.seeds:
             dt = now - s["ts"]
-            # Skip seeds with invalid timestamps (test data or future)
             if dt <= 0 or dt > 86400 * 365:
                 continue
             s["imp"] *= math.exp(-0.12 * dt)
@@ -157,31 +161,51 @@ class ManasController:
         return action, True, "放行"
 
 
-# ── Module-level instances (legacy, single-process only) ──
+# Module-level instances (legacy, single-process only)
 # WARNING: These are NOT safe for concurrent use across requests.
 # For production, use create_session() to get isolated instances.
 _lock = threading.Lock()
 env = GridSimEnv()
 alaya = AlayaMemory()
 manas = ManasController()
+# 转识成智 Phase1 新增模块
+introspection_logger = None  # lazy init to avoid circular import
+ego_monitor = None
+
+
+def _get_introspection_logger():
+    global introspection_logger, ego_monitor
+    if introspection_logger is None:
+        from yogacara_agent.ego_monitor import EgoMonitor
+        from yogacara_agent.introspection import IntrospectionLogger
+
+        introspection_logger = IntrospectionLogger()
+        ego_monitor = EgoMonitor()
+    return introspection_logger
+
+
+def _get_ego_monitor():
+    global introspection_logger, ego_monitor
+    if ego_monitor is None:
+        _get_introspection_logger()
+    return ego_monitor
 
 
 def create_session() -> dict:
-    """Create an isolated session with fresh env/memory/manas instances.
+    """Create an isolated session with fresh env/memory/manas instances."""
+    from yogacara_agent.ego_monitor import EgoMonitor
+    from yogacara_agent.introspection import IntrospectionLogger
 
-    Use this for API servers and concurrent environments to avoid
-    shared mutable state across requests.
-    """
     return {
         "env": GridSimEnv(),
         "alaya": AlayaMemory(),
         "manas": ManasController(),
+        "introspection": IntrospectionLogger(),
+        "ego_monitor": EgoMonitor(),
     }
 
 
 async def node_perceive(state: YogacaraState) -> YogacaraState:
-    # Use the obs from the previous step (already updated by node_execute).
-    # Only re-observe if this is the first step (obs has no meaningful data).
     if state["step"] == 0 and not state["obs"].get("pos"):
         state["obs"] = env._observe()
     state["seeds"] = alaya.retrieve(state["obs"])
@@ -191,7 +215,6 @@ async def node_perceive(state: YogacaraState) -> YogacaraState:
 async def node_plan(state: YogacaraState) -> YogacaraState:
     view = state["obs"]["grid_view"]
     pos = state["obs"].get("pos", (0, 0))
-    # Distance heuristic: when no resource in local view, guide toward nearest resource
     best_dir_r: str | None = None
     best_dir_c: str | None = None
     dist_bonus = 0.0
@@ -199,7 +222,7 @@ async def node_plan(state: YogacaraState) -> YogacaraState:
         nearest = min(env.resources, key=lambda r: abs(r[0] - pos[0]) + abs(r[1] - pos[1]))
         best_dir_r = "DOWN" if nearest[0] > pos[0] else "UP" if nearest[0] < pos[0] else "STAY"
         best_dir_c = "RIGHT" if nearest[1] > pos[1] else "LEFT" if nearest[1] < pos[1] else "STAY"
-        dist_bonus = 0.4  # per-direction bonus when approaching nearest resource
+        dist_bonus = 0.4
 
     scores = {}
     for a in ACTIONS:
@@ -214,6 +237,8 @@ async def node_plan(state: YogacaraState) -> YogacaraState:
     state["action"] = best
     state["unc"] = unc
     state["tool_calls"] = []
+    state["plan_scores"] = scores
+    state["reasoning"] = _build_reasoning(state, best, scores)
     if unc > 0.6:
         state["tool_calls"].append({"tool": "query_knowledge_base", "input": f"高不确定性状态 {state['obs']['pos']}"})
     if state["step"] % 15 == 0:
@@ -223,7 +248,62 @@ async def node_plan(state: YogacaraState) -> YogacaraState:
     return state
 
 
+def _build_reasoning(state: YogacaraState, best_action: str, scores: dict) -> str:
+    view = state["obs"]["grid_view"]
+    nearby = ["资源" if v == 1.0 else "陷阱" if v == -1.0 else "空" for v in view]
+    return (
+        f"视野{nearby}，选择{best_action}({scores[best_action]:.2f})，"
+        f"检索{len(state['seeds'])}条种子，"
+        f"不确定性{state['unc']:.0%}"
+    )
+
+
+async def node_introspect(state: YogacaraState) -> YogacaraState:
+    """
+    内省节点（第六识的自我观察）。
+
+    在每次决策后调用，对认知过程做结构化记录。
+    这是"自指环"的核心——Agent 观察自己的决策过程，
+    积累数据后才能谈"转依"。
+    """
+    logger = _get_introspection_logger()
+    alternatives = list(state["plan_scores"].keys()) if state.get("plan_scores") else ACTIONS
+    score_best = state["plan_scores"].get(state["action"], 0.0) if state.get("plan_scores") else 0.0
+    score_second = 0.0
+    if state.get("plan_scores"):
+        score_second = max((v for k, v in state["plan_scores"].items() if k != state["action"]), default=0.0)
+
+    record = logger.observe(
+        step=state["step"],
+        obs=state["obs"],
+        action=state["action"],
+        unc=state["unc"],
+        seeds_retrieved=state["seeds"],
+        reasoning=state.get("reasoning", ""),
+        alternatives=alternatives,
+        manas_intercepted=not state["manas_passed"],
+        score_best=score_best,
+        score_second=score_second,
+    )
+    state["introspection_record"] = {
+        "step": record.step,
+        "nature": record.nature,
+        "ego_markers": record.ego_markers,
+        "unc": record.unc,
+        "decision_gap": record.decision_gap,
+        "reasoning": record.reasoning,
+    }
+    return state
+
+
 async def node_manas(state: YogacaraState) -> YogacaraState:
+    """
+    增强的末那识节点：同时处理环境安全 + 认知我执。
+
+    原功能：环境安全拦截（陷阱、停滞、循环）
+    新增功能：认知我执评估 → 生成转依提醒（不强制拦截）
+    """
+    # 原功能：环境安全过滤
     final, passed, log = manas.filter(
         state["action"],
         state["obs"],
@@ -236,6 +316,44 @@ async def node_manas(state: YogacaraState) -> YogacaraState:
     state["manas_passed"] = passed
     if not passed:
         print(f"\033[33m{log}\033[0m")
+
+    # 新增：我执评估（仅提醒，不拦截）
+    if state.get("introspection_record"):
+        from yogacara_agent.introspection import IntrospectionRecord
+
+        rec_data = state["introspection_record"]
+        rec = IntrospectionRecord(
+            step=rec_data["step"],
+            timestamp=0.0,
+            obs=state["obs"],
+            action=final,
+            unc=rec_data["unc"],
+            seeds_retrieved=state["seeds"],
+            reasoning=rec_data.get("reasoning", ""),
+            alternatives=[],
+            ego_markers=rec_data.get("ego_markers", []),
+            nature=rec_data.get("nature", ""),
+            nature_confidence=0.5,
+            score_best=0.0,
+            score_second=0.0,
+            decision_gap=rec_data.get("decision_gap", 0.0),
+            manas_intercepted=not passed,
+        )
+        ego = _get_ego_monitor().assess(rec)
+        state["ego_alert"] = {
+            "ego_score": ego.ego_score,
+            "long_term_ego": ego.long_term_ego,
+            "triggered": ego.triggered,
+            "recommendation": ego.recommendation,
+            "equanimity_wisdom": ego.equanimity_wisdom,
+            "prajna_wisdom": ego.prajna_wisdom,
+        }
+        if ego.triggered:
+            nature_tag = rec_data.get("nature", "")
+            print(
+                f"\033[35m[末那识提醒 step {state['step']}] {ego.recommendation} | 三性:{nature_tag} | 平等性智:{ego.equanimity_wisdom:.0%} 妙观察智:{ego.prajna_wisdom:.0%}\033[0m"
+            )
+
     return state
 
 
@@ -255,6 +373,21 @@ async def node_execute(state: YogacaraState) -> YogacaraState:
 
 
 async def node_store(state: YogacaraState) -> YogacaraState:
+    # 基于内省数据改进种子标签
+    int_rec = state.get("introspection_record")
+    if int_rec:
+        nature = int_rec.get("nature", "依他起")
+        markers = int_rec.get("ego_markers", [])
+        if markers:
+            align = 0.3
+        elif int_rec.get("unc", 1.0) < 0.3:
+            align = 0.9
+        else:
+            align = 0.7
+    else:
+        nature = "依他起" if state["unc"] < 0.5 else "遍计所执"
+        align = 1.0 if state["manas_passed"] else 0.4
+
     alaya.add(
         {
             "emb": alaya._encode(state["obs"]),
@@ -262,9 +395,9 @@ async def node_store(state: YogacaraState) -> YogacaraState:
             "rew": state["reward"],
             "ts": time.time(),
             "imp": 0.8,
-            "align": 1.0 if state["manas_passed"] else 0.4,
+            "align": align,
             "unc": state["unc"],
-            "tag": "依他起" if state["unc"] < 0.5 else "遍计所执",
+            "tag": nature,
         }
     )
     return state
@@ -279,31 +412,36 @@ def build_graph() -> CompiledStateGraph[YogacaraState, None, YogacaraState]:
     for n, fn in [
         ("perceive", node_perceive),
         ("plan", node_plan),
+        ("introspect", node_introspect),
         ("manas", node_manas),
         ("execute", node_execute),
         ("store", node_store),
     ]:
         wf.add_node(n, fn)
     wf.set_entry_point("perceive")
-    for e in [("perceive", "plan"), ("plan", "manas"), ("manas", "execute"), ("execute", "store")]:
+    for e in [
+        ("perceive", "plan"),
+        ("plan", "introspect"),
+        ("introspect", "manas"),
+        ("manas", "execute"),
+        ("execute", "store"),
+    ]:
         wf.add_edge(*e)
     wf.add_conditional_edges("store", check_done, {"continue": "perceive", "end": END})
     return wf.compile()
 
 
 async def slow_loop(alaya_mem, interval=10):
-    """Background task for periodic memory consolidation.
-
-    Runs indefinitely regardless of episode state — perfume_update is idempotent
-    and safe to call even when no episode is active.
-    """
+    """Background task for periodic memory consolidation."""
     while True:
         await asyncio.sleep(interval)
         alaya_mem.perfume_update()
 
 
 async def main():
-    print("\n\033[36m🌀 唯识进化框架 LangGraph 版启动\033[0m")
+    print("\n\033[36m~ 唯识进化框架 LangGraph 版（转识成智 Phase1）~\033[0m")
+    # 初始化内省系统（lazy init 避免循环导入）
+    _get_introspection_logger()
     graph = build_graph()
     asyncio.create_task(slow_loop(alaya, interval=10))
     init_state = {
@@ -319,11 +457,32 @@ async def main():
         "recent_rewards": [],
         "pos_history": [],
         "metrics": {},
+        "introspection_record": None,
+        "ego_alert": None,
+        "plan_scores": None,
+        "reasoning": "",
     }
     final_state = await graph.ainvoke(init_state)
+    total_steps = final_state["step"]
+    total_reward = sum(final_state["recent_rewards"])
+    print(f"\n>> 运行结束 | 步数:{total_steps} | 累计奖励:{total_reward:.2f} | 末那反思:{manas.reflections}次")
+    # 四智报告
+    print("\n\033[36m~ 四智转依进度报告 ~\033[0m")
+    report = _get_ego_monitor().four_wisdoms_report()
+    for name, data in report.items():
+        if isinstance(data, dict):
+            raw = data.get("raw_long_term_ego", data.get("raw_prajna_ratio", ""))
+            status = data.get("status", "")
+            sc = "\033[32m" if "达标" in status else "\033[33m"
+            print(f"  {name}: {sc}{status}\033[0m  {raw}")
+        else:
+            print(f"  {name}: {data}")
+    summary = _get_introspection_logger().recent_summary()
+    print("\n\033[36m~ 内省数据摘要（最近20步）~\033[0m")
     print(
-        f"\n✅ 运行结束 | 步数:{final_state['step']} | 累计奖励:{sum(final_state['recent_rewards']):.2f} | 末那反思:{manas.reflections}次"
+        f"  三性: 圆成实{summary['nature_distribution']['圆成实']} | 依他起{summary['nature_distribution']['依他起']} | 遍计所执{summary['nature_distribution']['遍计所执']}"
     )
+    print(f"  我执模式: {summary['ego_patterns']}  末那拦截率:{summary['intercept_rate']:.0%}")
 
 
 if __name__ == "__main__":

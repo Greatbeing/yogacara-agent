@@ -19,6 +19,8 @@ from yogacara_agent.yogacara_test import (
     ACTIONS,
     ACTION_TO_IDX,
 )
+from yogacara_agent.ego_monitor import EgoMonitor
+from yogacara_agent.introspection import IntrospectionLogger
 
 __all__ = [
     # 核心类
@@ -35,4 +37,7 @@ __all__ = [
     "DECAY_RATE",
     "ACTIONS",
     "ACTION_TO_IDX",
+    # 转识成智 Phase1
+    "IntrospectionLogger",
+    "EgoMonitor",
 ]
