@@ -28,6 +28,37 @@ graph LR
 - 📊 **学术可验证**：在线实验流水线 / 95%置信区间 / 消融模板 / 一键出图
 - 🌐 **跨域适配**：ROS2 / Unity ML-Agents / Isaac Sim 统一环境契约
 
+## 🚀 5分钟快速体验
+
+**方式 A — Web 可视化（推荐新手）**
+```bash
+pip install streamlit
+streamlit run demo_app.py
+# 打开 http://localhost:8501
+```
+- 实时网格世界 + 八识数据流
+- 种子记忆状态可视化
+- 末那识拦截事件
+- 四智指标仪表盘
+
+**方式 B — 终端演示（无需任何依赖）**
+```bash
+python run_demo.py                          # 单轮演示
+python run_demo.py -n 10 -s 60            # 10轮批量实验
+python run_demo.py --max-steps 20         # 短跑（20步）
+```
+- UTF-8 编码（Windows GBK 兼容）
+- ASCII 网格 + 实时评分
+- 四智近似指标输出
+
+**方式 C — 标准测试**
+```bash
+python -m yogacara_agent.yogacara_test     # 9项核心测试
+pytest tests/                              # 完整测试套件
+```
+
+---
+
 ## 🚀 快速开始
 
 ### 方式一：使用外部 API（推荐，无需本地 GPU）
@@ -65,6 +96,8 @@ python src/yogacara_test.py  # MVP 验证
 ## 📦 模块说明
 | 模块 | 路径 | 功能 |
 |------|------|------|
+| **演示入口** | `run_demo.py` | 终端演示脚本（无 GBK 问题）|
+| **Web 演示** | `demo_app.py` | Streamlit 可视化界面 |
 | MVP验证 | `src/yogacara_test.py` | 零依赖八识闭环跑通 |
 | 生产编排 | `src/yogacara_langgraph.py` | 异步双循环+工具路由 |
 | LLM接入 | `src/llm_planner.py` | Qwen/Llama结构化输出+降级 |
@@ -79,6 +112,7 @@ python src/yogacara_test.py  # MVP 验证
 - [部署指南](docs/DEPLOYMENT.md)
 - [安全规范](docs/SECURITY.md)
 - [实验手册](docs/EXPERIMENTS.md)
+- [转识成智架构设计](docs/TRANSFORMATION_DESIGN.md)
 
 ## 🤝 贡献指南
 详见 [CONTRIBUTING.md](CONTRIBUTING.md)
