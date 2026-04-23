@@ -181,6 +181,7 @@ def _get_seed_classifier():
     global seed_classifier
     if seed_classifier is None:
         from yogacara_agent.seed_classifier import SeedClassifier
+
         seed_classifier = SeedClassifier()
     return seed_classifier
 
@@ -408,7 +409,7 @@ async def node_store(state: YogacaraState) -> YogacaraState:
         _seed_counts[classification.seed_type] += 1
     _total_classified += 1
     # 圆成实判定：无ego标记 + 高align + 非异熟种
-    if (not ego_markers and classification.align >= 0.7 and classification.seed_type != "异熟种"):
+    if not ego_markers and classification.align >= 0.7 and classification.seed_type != "异熟种":
         _parinispanna_count += 1
 
     # Inject classification into state for ego_monitor visibility
@@ -426,17 +427,20 @@ async def node_store(state: YogacaraState) -> YogacaraState:
     # Store seed with classified align and tag
     is_vipaka = classification.seed_type == "异熟种"
     seed_tag = f"{classification.seed_type}_{classification.subtype}" if is_vipaka else classification.tag
-    alaya.add({
-        "emb": alaya._encode(state["obs"]),
-        "act": state["action"],
-        "rew": state["reward"],
-        "ts": time.time(),
-        "imp": 0.8 if is_vipaka else classification.align,
-        "align": classification.align,
-        "unc": state["unc"],
-        "tag": seed_tag,
-    })
+    alaya.add(
+        {
+            "emb": alaya._encode(state["obs"]),
+            "act": state["action"],
+            "rew": state["reward"],
+            "ts": time.time(),
+            "imp": 0.8 if is_vipaka else classification.align,
+            "align": classification.align,
+            "unc": state["unc"],
+            "tag": seed_tag,
+        }
+    )
     return state
+
 
 def check_done(state: YogacaraState) -> str:
     return "end" if state["done"] else "continue"
@@ -520,15 +524,15 @@ async def main():
         print(f"  平等性智: {equality_data}")
     # 3. 妙观察智 = 遍计所执比例（来自内省摘要）
     summary = _get_introspection_logger().recent_summary()
-    total_nature = sum(summary['nature_distribution'].values())
-    parikalpita_ratio = summary['nature_distribution']['遍计所执'] / total_nature if total_nature > 0 else 0
+    total_nature = sum(summary["nature_distribution"].values())
+    parikalpita_ratio = summary["nature_distribution"]["遍计所执"] / total_nature if total_nature > 0 else 0
     prajna_status = "达标" if parikalpita_ratio <= 0.15 else "未达标"
     prajna_sc = "\033[32m" if prajna_status == "达标" else "\033[33m"
     print(f"  妙观察智: {prajna_sc}{prajna_status}\033[0m  遍计所执比例:{parikalpita_ratio:.1%} (目标:<15%)")
     # 4. 成所作智 = 感知-行动-反馈闭环完成率
     # 计算：高奖励决策占比（奖励>0且非异熟种=环境奖励与预期一致）
     total_seeds = sum(_seed_counts.values())
-    vipaka_count = _seed_counts['异熟种']
+    vipaka_count = _seed_counts["异熟种"]
     non_vipaka = total_seeds - vipaka_count
     # 成所作智：非异熟种中，奖励为正的占比 = 前五识如实反映环境
     # 简化计算：用 recent_rewards 中正奖励比例
@@ -547,7 +551,9 @@ async def main():
     print("\n\033[36m~ 种子分类统计（全程）~\033[0m")
     print(f"  名言种: {_seed_counts['名言种']} | 业种: {_seed_counts['业种']} | 异熟种: {_seed_counts['异熟种']}")
     if total_seeds > 0:
-        print(f"  占比: 名言{_seed_counts['名言种']*100//total_seeds}% | 业{_seed_counts['业种']*100//total_seeds}% | 异熟{_seed_counts['异熟种']*100//total_seeds}%")
+        print(
+            f"  占比: 名言{_seed_counts['名言种'] * 100 // total_seeds}% | 业{_seed_counts['业种'] * 100 // total_seeds}% | 异熟{_seed_counts['异熟种'] * 100 // total_seeds}%"
+        )
         print(f"  圆成实种子: {_parinispanna_count}/{_total_classified} ({mirror_ratio:.1%})")
 
 
