@@ -5,7 +5,6 @@ import threading
 from contextlib import asynccontextmanager
 from typing import Any
 
-import uvicorn
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
@@ -93,6 +92,7 @@ async def main():
     # Detect if we're already inside an event loop (e.g., running under OpenClaw)
     try:
         asyncio.get_running_loop()
+
         # Already in a loop: run uvicorn in a separate thread to avoid conflicts
         def run_server():
             import uvicorn
