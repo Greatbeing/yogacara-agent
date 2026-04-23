@@ -1,0 +1,43 @@
+OpenBLAS WARNING - could not determine the L2 cache size on this system, assuming 256k
+🚀 开始扩大规模实验 (30 回合)...
+模型：nvidia/nemotron-3-super-120b-a12b:free (120B)
+预计耗时：约 15-20 分钟
+--------------------------------------------------
+🧪 运行实验轮次:   0%|          | 0/30 [00:00<?, ?it/s]🧪 运行实验轮次:   3%|▎         | 1/30 [00:00<00:14,  2.03it/s]🧪 运行实验轮次: 100%|██████████| 30/30 [00:00<00:00, 53.62it/s]
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+[90m[工具] calculate_metric → 0.0[0m
+--------------------------------------------------
+✅ 实验完成！
+总步数分析：3 个步骤
+最终平均奖励 (Step 3): -0.22 ± 1.11
+最佳平均奖励：-0.03 (Step 1)
+平均拦截率：0.00%
+📊 图表已保存到 exp_results_scale_30/

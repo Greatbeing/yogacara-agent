@@ -1,0 +1,4 @@
+episode,step,reward,cum_reward,intercepted,unc
+0,1,-0.1,-0.1,False,0.4558374611535234
+1,1,-0.1,-0.1,False,0.4841624284540661
+2,1,-0.1,-0.1,False,0.4782581522663826
