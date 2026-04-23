@@ -19,16 +19,18 @@ from typing import Any
 
 # ── 类型定义 ─────────────────────────────────────────────────────
 
+
 @dataclass
 class SeedClassification:
     """单次种子分类结果。"""
+
     step: int
-    seed_type: str          # "名言种" | "业种" | "异熟种"
-    subtype: str             # 具体子类型
-    align: float             # 调整后的 align 值 [0, 1]
-    tag: str                 # 语义标签
-    note: str                # 分类理由
-    triggered: bool          # 是否触发新种子
+    seed_type: str  # "名言种" | "业种" | "异熟种"
+    subtype: str  # 具体子类型
+    align: float  # 调整后的 align 值 [0, 1]
+    tag: str  # 语义标签
+    note: str  # 分类理由
+    triggered: bool  # 是否触发新种子
 
 
 @dataclass
@@ -38,6 +40,7 @@ class VipakaAccumulator:
 
     记录长期统计，不做即时决策，只在模式清晰时输出"异熟提醒"。
     """
+
     _consecutive_failures: list[tuple[int, str]] = field(default_factory=list)
     _last_action: str | None = None
     _action_streak: int = 0
