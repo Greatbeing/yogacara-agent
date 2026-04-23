@@ -173,6 +173,8 @@ introspection_logger = None  # lazy init to avoid circular import
 ego_monitor = None
 seed_classifier = None  # lazy init
 _seed_counts = {"名言种": 0, "业种": 0, "异熟种": 0}  # Phase1-2 seed type counter
+_parinispanna_count = 0  # Phase3: 圆成实种子计数（用于大圆镜智指标）
+_total_classified = 0  # Phase3: 总分类种子数
 
 
 def _get_seed_classifier():
@@ -401,8 +403,13 @@ async def node_store(state: YogacaraState) -> YogacaraState:
         manas_intercepted=not state["manas_passed"],
     )
     # Track seed type counts
+    global _total_classified, _parinispanna_count
     if classification.seed_type in _seed_counts:
         _seed_counts[classification.seed_type] += 1
+    _total_classified += 1
+    # 圆成实判定：无ego标记 + 高align + 非异熟种
+    if (not ego_markers and classification.align >= 0.7 and classification.seed_type != "异熟种"):
+        _parinispanna_count += 1
 
     # Inject classification into state for ego_monitor visibility
     if int_rec is None:
@@ -494,29 +501,54 @@ async def main():
     total_steps = final_state["step"]
     total_reward = sum(final_state["recent_rewards"])
     print(f"\n>> 运行结束 | 步数:{total_steps} | 累计奖励:{total_reward:.2f} | 末那反思:{manas.reflections}次")
-    # 四智报告
-    print("\n\033[36m~ 四智转依进度报告 ~\033[0m")
+    # Phase3: 四智量化报告（基于种子分类统计）
+    print("\n\033[36m~ 四智转依进度报告 (Phase3 量化版) ~\033[0m")
+    # 1. 大圆镜智 = 圆成实种子占比
+    mirror_ratio = _parinispanna_count / _total_classified if _total_classified > 0 else 0
+    mirror_status = "达标" if mirror_ratio >= 0.6 else "未达标"
+    mirror_sc = "\033[32m" if mirror_status == "达标" else "\033[33m"
+    print(f"  大圆镜智: {mirror_sc}{mirror_status}\033[0m  圆成实占比:{mirror_ratio:.1%} (目标:>60%)")
+    # 2. 平等性智 = 我执分数均值（来自ego_monitor）
     report = _get_ego_monitor().four_wisdoms_report()
-    for name, data in report.items():
-        if isinstance(data, dict):
-            raw = data.get("raw_long_term_ego", data.get("raw_prajna_ratio", ""))
-            status = data.get("status", "")
-            sc = "\033[32m" if "达标" in status else "\033[33m"
-            print(f"  {name}: {sc}{status}\033[0m  {raw}")
-        else:
-            print(f"  {name}: {data}")
+    equality_data = report.get("平等性智", {})
+    if isinstance(equality_data, dict):
+        eq_raw = equality_data.get("raw_long_term_ego", "")
+        eq_status = equality_data.get("status", "")
+        eq_sc = "\033[32m" if "达标" in eq_status else "\033[33m"
+        print(f"  平等性智: {eq_sc}{eq_status}\033[0m  我执均值:{eq_raw} (目标:<0.3)")
+    else:
+        print(f"  平等性智: {equality_data}")
+    # 3. 妙观察智 = 遍计所执比例（来自内省摘要）
     summary = _get_introspection_logger().recent_summary()
+    total_nature = sum(summary['nature_distribution'].values())
+    parikalpita_ratio = summary['nature_distribution']['遍计所执'] / total_nature if total_nature > 0 else 0
+    prajna_status = "达标" if parikalpita_ratio <= 0.15 else "未达标"
+    prajna_sc = "\033[32m" if prajna_status == "达标" else "\033[33m"
+    print(f"  妙观察智: {prajna_sc}{prajna_status}\033[0m  遍计所执比例:{parikalpita_ratio:.1%} (目标:<15%)")
+    # 4. 成所作智 = 感知-行动-反馈闭环完成率
+    # 计算：高奖励决策占比（奖励>0且非异熟种=环境奖励与预期一致）
+    total_seeds = sum(_seed_counts.values())
+    vipaka_count = _seed_counts['异熟种']
+    non_vipaka = total_seeds - vipaka_count
+    # 成所作智：非异熟种中，奖励为正的占比 = 前五识如实反映环境
+    # 简化计算：用 recent_rewards 中正奖励比例
+    positive_rewards = sum(1 for r in final_state["recent_rewards"] if r > 0)
+    action_ratio = positive_rewards / len(final_state["recent_rewards"]) if final_state["recent_rewards"] else 0
+    action_status = "达标" if action_ratio >= 0.9 else "未达标"
+    action_sc = "\033[32m" if action_status == "达标" else "\033[33m"
+    print(f"  成所作智: {action_sc}{action_status}\033[0m  正反馈率:{action_ratio:.1%} (目标:>90%)")
+    # 内省数据摘要
     print("\n\033[36m~ 内省数据摘要（最近20步）~\033[0m")
     print(
         f"  三性: 圆成实{summary['nature_distribution']['圆成实']} | 依他起{summary['nature_distribution']['依他起']} | 遍计所执{summary['nature_distribution']['遍计所执']}"
     )
     print(f"  我执模式: {summary['ego_patterns']}  末那拦截率:{summary['intercept_rate']:.0%}")
     # 种子分类统计
-    total = sum(_seed_counts.values())
     print("\n\033[36m~ 种子分类统计（全程）~\033[0m")
     print(f"  名言种: {_seed_counts['名言种']} | 业种: {_seed_counts['业种']} | 异熟种: {_seed_counts['异熟种']}")
-    if total > 0:
-        print(f"  占比: 名言{_seed_counts['名言种']*100//total}% | 业{_seed_counts['业种']*100//total}% | 异熟{_seed_counts['异熟种']*100//total}%")
+    if total_seeds > 0:
+        print(f"  占比: 名言{_seed_counts['名言种']*100//total_seeds}% | 业{_seed_counts['业种']*100//total_seeds}% | 异熟{_seed_counts['异熟种']*100//total_seeds}%")
+        print(f"  圆成实种子: {_parinispanna_count}/{_total_classified} ({mirror_ratio:.1%})")
 
 
 if __name__ == "__main__":
