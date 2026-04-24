@@ -131,18 +131,17 @@ class IntrospectionLogger:
         has_good_seeds = any(s.get("rew", 0) > 0 for s in seeds)
         has_bad_seeds = any(s.get("rew", 0) < 0 for s in seeds)
 
-        # 宽松版分类：有经验支持时降级处理
+        # 优化版分类：圆成实门槛放宽，遍计所执门槛收紧
         has_good_seed = any(s.get("rew", 0) > 0 for s in seeds)
-
-        if has_good_seed and unc < 0.45 and seed_count >= 1:
+        if has_good_seed and unc < 0.55 and seed_count >= 1:
             return "圆成实", 0.80
         elif unc < 0.55 and (seed_count >= 1 or has_good_seed):
             return "依他起", 0.75
         elif unc < 0.5 and seed_count >= 1:
             return "依他起", 0.70
-        elif unc > 0.7 and seed_count == 0:
+        elif unc > 0.55 and seed_count == 0:
             return "遍计所执", 0.90
-        elif unc > 0.6:
+        elif unc > 0.6 and not has_good_seed:
             return "遍计所执", 0.65
         else:
             return "依他起", 0.60
@@ -170,7 +169,7 @@ class IntrospectionLogger:
         # ── 2. 俱生贪（执取模式）────────────────────────────────
         # 高不确定性时选择行动而非等待（真正执取）
         # 低不确定性时选择行动是理性决策，不是贪
-        if unc > 0.55 and action != "STAY" and len(alternatives) >= 2:
+        if unc > 0.65 and action != "STAY" and len(alternatives) >= 2:
             markers.append("俱生贪: 高不确定却执取行动而非等待")
 
         # ── 3. 俱生执（惯性模式）────────────────────────────────
