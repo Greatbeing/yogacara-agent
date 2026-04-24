@@ -182,14 +182,28 @@ class ConsciousnessPlanner:
             best_dir_r = "DOWN" if nearest[0] > pos[0] else "UP" if nearest[0] < pos[0] else "STAY"
             best_dir_c = "RIGHT" if nearest[1] > pos[1] else "LEFT" if nearest[1] < pos[1] else "STAY"
             dist_bonus = 0.4
-        scores = {}
+        # Pass 1: base scores, then uncertainty, then bias (fixes 俱生贪)
+        base_scores = {}
         for a in ACTIONS:
             idx = ACTION_TO_IDX[a]
             base = view[idx] if 0 <= idx < 9 else -0.5
             pos_b = sum(s.reward * s.importance for s in seeds if s.action == a and s.reward > 0) * 0.8
             neg_p = sum(abs(s.reward) * s.importance for s in seeds if s.action == a and s.reward < 0) * 0.5
             approach = dist_bonus if best_dir_r and a in (best_dir_r, best_dir_c) else 0.0
-            scores[a] = base + pos_b - neg_p + approach + (0.25 if a != "STAY" else -0.8) + random.uniform(-0.03, 0.03)
+            base_scores[a] = base + pos_b - neg_p + approach + random.uniform(-0.03, 0.03)
+        best_base = max(base_scores, key=base_scores.get)
+        unc_base = max(0.0, min(1.0,
+            1.0 - (base_scores[best_base] - min(base_scores.values())) / 2.0))
+        scores = {}
+        for a in ACTIONS:
+            has_bonus = best_dir_r and a in (best_dir_r, best_dir_c)
+            if unc_base >= 0.5 and not has_bonus:
+                bias = 0.30 if a == "STAY" else -0.35
+            elif unc_base < 0.3:
+                bias = -0.20 if a == "STAY" else 0.15
+            else:
+                bias = 0.0
+            scores[a] = base_scores[a] + bias
         best = max(scores, key=scores.get)
         unc = max(0.0, min(1.0, 1.0 - (scores[best] - min(scores.values())) / 2.0))
         return best, unc, scores
