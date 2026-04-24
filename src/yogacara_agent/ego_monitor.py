@@ -80,11 +80,15 @@ class EgoMonitor:
         nature = record.nature
 
         # ── 即时我执分数 ──
-        # 基于标记数量 + 不确定性 + 决策差距
-        marker_score = min(1.0, len(markers) * 0.30)
-        unc_score = unc * 0.4
-        gap_score = min(0.3, record.decision_gap * 0.5)
-        ego_score = min(1.0, marker_score + unc_score + gap_score)
+        # 平等性智：只看我执标记，不看不确定性（不确定性是认知局限，不是执著）
+        marker_score = min(1.0, len(markers) * 0.25)
+        # 只有在有我执标记时，不确定性和决策差距才放大执著程度
+        if markers:
+            unc_score = unc * 0.2
+            gap_score = min(0.2, record.decision_gap * 0.3)
+            ego_score = min(1.0, marker_score + unc_score + gap_score)
+        else:
+            ego_score = 0.0  # 无标记 = 无我执
 
         self.ego_score_history.append(ego_score)
 
