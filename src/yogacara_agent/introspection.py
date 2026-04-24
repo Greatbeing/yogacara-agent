@@ -51,6 +51,9 @@ class IntrospectionLogger:
         self.logs: list[IntrospectionRecord] = []
         self.ego_patterns: dict[str, int] = {}  # 我执模式统计
         self._recent_actions: list[str] = []  # 近期行动历史（检测惯性）
+        # 大圆镜智：圆成实种子计数（由内省系统直接维护）
+        self._parinispanna_count = 0
+        self._total_classified = 0
 
     def observe(
         self,
@@ -108,6 +111,10 @@ class IntrospectionLogger:
         self.logs.append(record)
         self._update_ego_patterns(markers)
         self._recent_actions.append(action)
+        # 大圆镜智计数：圆成实 = 无我执 + 决策有依据（seeds支持）
+        self._total_classified += 1
+        if nature == "圆成实" and not markers:
+            self._parinispanna_count += 1
 
         return record
 
@@ -124,16 +131,21 @@ class IntrospectionLogger:
         has_good_seeds = any(s.get("rew", 0) > 0 for s in seeds)
         has_bad_seeds = any(s.get("rew", 0) < 0 for s in seeds)
 
-        if unc < 0.3 and seed_count >= 2 and has_good_seeds:
-            return "圆成实", 0.85
+        # 宽松版分类：有经验支持时降级处理
+        has_good_seed = any(s.get("rew", 0) > 0 for s in seeds)
+
+        if has_good_seed and unc < 0.45 and seed_count >= 1:
+            return "圆成实", 0.80
+        elif unc < 0.55 and (seed_count >= 1 or has_good_seed):
+            return "依他起", 0.75
         elif unc < 0.5 and seed_count >= 1:
             return "依他起", 0.70
         elif unc > 0.7 and seed_count == 0:
             return "遍计所执", 0.90
-        elif unc > 0.5:
-            return "遍计所执", 0.60
+        elif unc > 0.6:
+            return "遍计所执", 0.65
         else:
-            return "依他起", 0.55
+            return "依他起", 0.60
 
     def _detect_ego_markers(
         self,
@@ -156,10 +168,10 @@ class IntrospectionLogger:
             markers.append("遍计所执: 高不确定却强行决策")
 
         # ── 2. 俱生贪（执取模式）────────────────────────────────
-        # 只考虑对"我"有利的选项，排除 STAY（不动）
-        non_stay_alts = [a for a in alternatives if a != "STAY"]
-        if len(non_stay_alts) < len(alternatives) and len(alternatives) >= 3:
-            markers.append("俱生贪: 优先考虑行动而回避等待")
+        # 高不确定性时选择行动而非等待（真正执取）
+        # 低不确定性时选择行动是理性决策，不是贪
+        if unc > 0.55 and action != "STAY" and len(alternatives) >= 2:
+            markers.append("俱生贪: 高不确定却执取行动而非等待")
 
         # ── 3. 俱生执（惯性模式）────────────────────────────────
         # 重复相同行动 3 次以上

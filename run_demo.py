@@ -358,9 +358,13 @@ class YogacaraAgent:
     def _print_summary(self):
         n = max(1, self.metrics["steps"])
         stats = self.alaya.stats()
-        four_wisdom = self.ego_monitor.four_wisdoms_report(intro_logger=self.introspection)
         vipaka_stats = self.seed_classifier.vipaka.stats
         recent_intro = self.introspection.recent_summary(n=20)
+        # 大圆镜智：直接从内省系统三性分布计算（reliable）
+        nature_dist = recent_intro.get('nature_distribution', {})
+        round_real = nature_dist.get('圆成实', 0)
+        total_natures = sum(nature_dist.values()) or 1
+        mirror_ratio = round_real / total_natures
         print()
         print("=" * 60)
         print("  唯识进化指标摘要（内省系统版）")
@@ -394,6 +398,11 @@ class YogacaraAgent:
 
         # ── 四智精确指标 ──
         print("  [四智精确指标]")
+        print(f"    圆成实比例  : {mirror_ratio:.1%} ({self.introspection._parinispanna_count}/{self.introspection._total_classified})")
+        four_wisdom = self.ego_monitor.four_wisdoms_report(
+            intro_logger=self.introspection,
+            mirror_ratio=mirror_ratio,
+        )
         for name, data in four_wisdom.items():
             if isinstance(data, dict):
                 status = data.get("status", "")
@@ -404,8 +413,7 @@ class YogacaraAgent:
                 else:
                     icon = "??"
                 if name == "大圆镜智":
-                    ytd_rate = stats["依他起"] / max(1, stats["total"])
-                    print(f"    {icon} {name}: {ytd_rate*100:.1f}% (target >60%) | {status}")
+                    print(f"    {icon} {name}: {mirror_ratio*100:.1f}% (target >60%) | {status}")
                 elif name == "平等性智":
                     raw = data.get("raw_long_term_ego", "?")
                     print(f"    {icon} {name}: 我执均值={raw} (target <{_EQUANIMITY_TARGET}) | {status}")
