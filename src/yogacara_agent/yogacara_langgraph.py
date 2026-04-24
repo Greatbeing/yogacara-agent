@@ -428,16 +428,19 @@ async def node_store(state: YogacaraState) -> YogacaraState:
 
     # Inject classification into state for ego_monitor visibility
     if int_rec is None:
-        state["introspection_record"] = cast(_IntrospectionRecordData, {
-            "step": state["step"],
-            "nature": classification.seed_type,
-            "ego_markers": ego_markers,
-            "unc": state["unc"],
-            "decision_gap": 0.0,
-            "reasoning": classification.note,
-            "seed_type": classification.seed_type,
-            "seed_align": classification.align,
-        })
+        state["introspection_record"] = cast(
+            _IntrospectionRecordData,
+            {
+                "step": state["step"],
+                "nature": classification.seed_type,
+                "ego_markers": ego_markers,
+                "unc": state["unc"],
+                "decision_gap": 0.0,
+                "reasoning": classification.note,
+                "seed_type": classification.seed_type,
+                "seed_align": classification.align,
+            },
+        )
     # Store seed with classified align and tag
     is_vipaka = classification.seed_type == "异熟种"
     seed_tag = f"{classification.seed_type}_{classification.subtype}" if is_vipaka else classification.tag
