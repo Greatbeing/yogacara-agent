@@ -5,7 +5,7 @@ import random
 import threading
 import time
 from collections import deque
-from typing import Any, TypedDict
+from typing import Any, TypedDict, cast
 
 from langchain_core.tools import tool
 from langgraph.graph import END, StateGraph
@@ -55,9 +55,18 @@ class YogacaraState(TypedDict):
     pos_history: list[tuple[int, int]]
     metrics: dict[str, float]
     # 转识成智新增字段
-    introspection_record: dict | None
+    introspection_record: "_IntrospectionRecordData | None"
     ego_alert: dict | None
-    plan_scores: dict | None
+    plan_scores: "dict[str, float] | None"
+    reasoning: str
+
+
+class _IntrospectionRecordData(TypedDict):
+    step: int
+    nature: str
+    ego_markers: list[str]
+    unc: float
+    decision_gap: float
     reasoning: str
 
 
@@ -280,11 +289,15 @@ async def node_introspect(state: YogacaraState) -> YogacaraState:
     积累数据后才能谈"转依"。
     """
     logger = _get_introspection_logger()
-    alternatives = list(state["plan_scores"].keys()) if state.get("plan_scores") else ACTIONS
-    score_best = state["plan_scores"].get(state["action"], 0.0) if state.get("plan_scores") else 0.0
-    score_second = 0.0
-    if state.get("plan_scores"):
-        score_second = max((v for k, v in state["plan_scores"].items() if k != state["action"]), default=0.0)
+    plan_scores = state["plan_scores"]
+    if plan_scores is None:
+        alternatives = ACTIONS
+        score_best = 0.0
+        score_second = 0.0
+    else:
+        alternatives = list(plan_scores.keys())
+        score_best = plan_scores.get(state["action"], 0.0)
+        score_second = max((v for k, v in plan_scores.items() if k != state["action"]), default=0.0)
 
     record = logger.observe(
         step=state["step"],
@@ -331,10 +344,11 @@ async def node_manas(state: YogacaraState) -> YogacaraState:
         print(f"\033[33m{log}\033[0m")
 
     # 新增：我执评估（仅提醒，不拦截）
-    if state.get("introspection_record"):
+    _int_rec = state.get("introspection_record")
+    if _int_rec is not None:
         from yogacara_agent.introspection import IntrospectionRecord
 
-        rec_data = state["introspection_record"]
+        rec_data: _IntrospectionRecordData = _int_rec  # type: ignore[assignment, misc]
         rec = IntrospectionRecord(
             step=rec_data["step"],
             timestamp=0.0,
@@ -342,10 +356,10 @@ async def node_manas(state: YogacaraState) -> YogacaraState:
             action=final,
             unc=rec_data["unc"],
             seeds_retrieved=state["seeds"],
-            reasoning=rec_data.get("reasoning", ""),
+            reasoning=rec_data.get("reasoning", "") or "",
             alternatives=[],
-            ego_markers=rec_data.get("ego_markers", []),
-            nature=rec_data.get("nature", ""),
+            ego_markers=rec_data.get("ego_markers", []) or [],
+            nature=rec_data.get("nature", "") or "",
             nature_confidence=0.5,
             score_best=0.0,
             score_second=0.0,
@@ -414,7 +428,7 @@ async def node_store(state: YogacaraState) -> YogacaraState:
 
     # Inject classification into state for ego_monitor visibility
     if int_rec is None:
-        state["introspection_record"] = {
+        state["introspection_record"] = cast(_IntrospectionRecordData, {
             "step": state["step"],
             "nature": classification.seed_type,
             "ego_markers": ego_markers,
@@ -423,7 +437,7 @@ async def node_store(state: YogacaraState) -> YogacaraState:
             "reasoning": classification.note,
             "seed_type": classification.seed_type,
             "seed_align": classification.align,
-        }
+        })
     # Store seed with classified align and tag
     is_vipaka = classification.seed_type == "异熟种"
     seed_tag = f"{classification.seed_type}_{classification.subtype}" if is_vipaka else classification.tag
