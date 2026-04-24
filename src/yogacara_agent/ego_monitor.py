@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from yogacara_agent.introspection import IntrospectionRecord
+from yogacara_agent.introspection import IntrospectionRecord, IntrospectionLogger
 
 
 # ── 四智量化阈值 ─────────────────────────────────────────────────
@@ -158,10 +158,13 @@ class EgoMonitor:
 
     # ── 四智指标汇总 ─────────────────────────────────────────────
 
-    def four_wisdoms_report(self) -> dict[str, Any]:
+    def four_wisdoms_report(self, intro_logger: IntrospectionLogger | None = None) -> dict[str, Any]:
         """
         返回四智的当前量化指标。
         基于最近 20 条评估计算。
+
+        Args:
+            intro_logger: 可选，内省记录器（用于计算成所作智）
         """
         history = self.ego_score_history[-self.long_term_window :]
         prajna_hist = self._prajna_history[-self.long_term_window :]
@@ -203,8 +206,9 @@ class EgoMonitor:
                 "target": f"<{PRAJNA_TARGET:.0%}",
             },
             "成所作智": {
-                "status": "待集成（需反馈闭环数据）",
-            },
+                **((intro_logger.compute_wisdom_of_action())
+                   if intro_logger
+                   else {"status": "待集成（需反馈闭环数据）"})},
         }
 
     def reset(self):

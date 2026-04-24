@@ -286,6 +286,8 @@ class YogacaraAgent:
             self.recent_rewards.append(rew)
             self.metrics["steps"] += 1
             self.metrics["reward"] += rew
+            # 塞入 reward 到 obs，使内省可访问（成所作智反馈闭环）
+            obs["reward"] = rew
             if rew > 2.0:
                 self.metrics["resources_found"] += 1
                 self._steps_stuck = 0
@@ -356,7 +358,7 @@ class YogacaraAgent:
     def _print_summary(self):
         n = max(1, self.metrics["steps"])
         stats = self.alaya.stats()
-        four_wisdom = self.ego_monitor.four_wisdoms_report()
+        four_wisdom = self.ego_monitor.four_wisdoms_report(intro_logger=self.introspection)
         vipaka_stats = self.seed_classifier.vipaka.stats
         recent_intro = self.introspection.recent_summary(n=20)
         print()
@@ -395,7 +397,12 @@ class YogacaraAgent:
         for name, data in four_wisdom.items():
             if isinstance(data, dict):
                 status = data.get("status", "")
-                icon = "OK " if "达标" in status or status == "无" or "待" in status else "!!"
+                if "未达标" in status or "待提升" in status:
+                    icon = "!!"
+                elif "达标" in status:
+                    icon = "OK "
+                else:
+                    icon = "??"
                 if name == "大圆镜智":
                     ytd_rate = stats["依他起"] / max(1, stats["total"])
                     print(f"    {icon} {name}: {ytd_rate*100:.1f}% (target >60%) | {status}")
@@ -405,6 +412,16 @@ class YogacaraAgent:
                 elif name == "妙观察智":
                     raw = data.get("raw_prajna_ratio", "?")
                     print(f"    {icon} {name}: 遍计率={raw} (target <{_PRAJNA_TARGET:.0%}) | {status}")
+                elif name == "成所作智":
+                    score = data.get("score", "?")
+                    loop = data.get("loop_rate", "?")
+                    intent = data.get("intent_rate", "?")
+                    align = data.get("alignment_rate", "?")
+                    res = data.get("resources_found", "?")
+                    steps = data.get("total_steps", "?")
+                    print(f"    {icon} {name}: score={score} | 闭环率={loop} 意行一致={intent} 果识吻合={align} | {status}")
+                    if isinstance(res, int) and isinstance(steps, int):
+                        print(f"         资源发现: {res}/3 ({steps}步中)")
                 else:
                     print(f"    {icon} {name}: {status}")
         print()
