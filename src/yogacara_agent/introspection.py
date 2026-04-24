@@ -211,6 +211,72 @@ class IntrospectionLogger:
             "intercept_rate": intercept_count / len(records),
         }
 
+    def compute_wisdom_of_action(self) -> dict[str, Any]:
+        """
+        成所作智——意→行→果→识 反馈闭环完整度。
+
+        三指标：
+        1. 闭环完成率：reward ≠ 0 的步数比例（环境有反馈=闭环了）
+        2. 意图-行动一致率：(steps - manas_intercepted) / steps（末那未拦截=意行合一）
+        3. 果-识吻合度：奖励符合预期的比例
+                   - 踩资源：reward ≈ +5.0
+                   - 踩陷阱：reward ≈ -3.0
+                   - 空走：reward ≈ -0.1~0.6（STAY=+0.5）
+        """
+        records = self.logs
+        if not records:
+            return {"status": "无内省数据"}
+
+        total = len(records)
+        # 1. 闭环完成率：环境给了非零反馈
+        closed_loop = sum(1 for r in records if r.obs.get("reward", 0) != 0)
+        loop_rate = closed_loop / total
+
+        # 2. 意图-行动一致率：末那未拦截
+        consistent = sum(1 for r in records if not r.manas_intercepted)
+        intent_rate = consistent / total
+
+        # 3. 果-识吻合度：reward 在合理范围内
+        matched = 0
+        for r in records:
+            rew = r.obs.get("reward", 0)
+            act = r.action
+            # 资源格：reward ≈ +5.0
+            if rew >= 4.0:
+                matched += 1
+            # 陷阱格：reward ≈ -3.0
+            elif rew <= -2.0:
+                matched += 1
+            # 空走/STAY：reward 在 [-0.2, +0.7] 范围
+            elif -0.2 <= rew <= 0.7:
+                matched += 1
+            # 移动未踩到东西：-0.2 ~ +0.1 范围也算吻合
+            elif rew == -0.1 and act != "STAY":
+                matched += 1
+        # 吻合度（归一化到 [0,1]，0.8 以上算达标）
+        alignment_rate = matched / total
+        alignment_score = min(1.0, alignment_rate / 0.8)  # 80%吻合率 = 1.0
+
+        # 成所作智综合分：三个指标加权平均
+        wisdom_score = (loop_rate * 0.3 + intent_rate * 0.3 + alignment_score * 0.4)
+
+        # 资源发现率（额外参考）
+        resources_found = sum(1 for r in records if r.obs.get("reward", 0) >= 4.0)
+
+        return {
+            "score": round(wisdom_score, 3),
+            "loop_rate": round(loop_rate, 3),
+            "intent_rate": round(intent_rate, 3),
+            "alignment_rate": round(alignment_rate, 3),
+            "resources_found": resources_found,
+            "total_steps": total,
+            "status": (
+                "达标" if wisdom_score >= 0.7
+                else "发展中" if wisdom_score >= 0.4
+                else "待提升"
+            ),
+        }
+
     def get_last_record(self) -> IntrospectionRecord | None:
         return self.logs[-1] if self.logs else None
 
