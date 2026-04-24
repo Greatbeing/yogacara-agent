@@ -49,6 +49,9 @@ class GridSimEnv:
         self.agent_pos = [nx, ny]
         self.step_count += 1
         reward = -0.1
+        # GridSimV2: STAY has positive reward (existence bonus = "依他起性")
+        if action == "STAY":
+            reward += 0.5
         pos = tuple(self.agent_pos)
         if pos in self.resources:
             reward = 5.0
