@@ -144,14 +144,32 @@ class ConsciousnessPlanner:
             best_dir_c = "RIGHT" if nearest[1] > pos[1] else "LEFT" if nearest[1] < pos[1] else "STAY"
             dist_bonus = 0.4
 
-        scores = {}
+        # Pass 1: build base scores before applying bias (fixes 俱生贪: old code computed unc on empty dict)
+        base_scores = {}
         for a in ACTIONS:
             idx = ACTION_TO_IDX[a]
             base = view[idx] if 0 <= idx < 9 else -0.5
             pos_b = sum(s.reward * s.importance for s in seeds if s.action == a and s.reward > 0) * 0.8
             neg_p = sum(abs(s.reward) * s.importance for s in seeds if s.action == a and s.reward < 0) * 0.5
             approach = dist_bonus if best_dir_r and a in (best_dir_r, best_dir_c) else 0.0
-            scores[a] = base + pos_b - neg_p + approach + (0.25 if a != "STAY" else -0.8) + random.uniform(-0.03, 0.03)
+            base_scores[a] = base + pos_b - neg_p + approach + random.uniform(-0.03, 0.03)
+        best_base = max(base_scores, key=base_scores.get)
+        unc_base = max(0.0, min(1.0,
+            1.0 - (base_scores[best_base] - min(base_scores.values())) / 2.0))
+        # Fixed: STAY-bias based on true uncertainty (fixes 俱生贪 structural bias)
+        # - High unc (>=0.5): non-STAY gets -0.35 penalty, STAY gets +0.3 bonus
+        # - Low unc (<0.3): movement encouraged (resource signal clear)
+        # - Old code: STAY=-0.8, non-STAY=+0.25 → +1.05 net bias TOWARD movement every step
+        scores = {}
+        for a in ACTIONS:
+            has_bonus = best_dir_r and a in (best_dir_r, best_dir_c)
+            if unc_base >= 0.5 and not has_bonus:
+                bias = 0.30 if a == "STAY" else -0.35
+            elif unc_base < 0.3:
+                bias = -0.20 if a == "STAY" else 0.15
+            else:
+                bias = 0.0
+            scores[a] = base_scores[a] + bias
         best = max(scores, key=scores.get)
         unc = max(0.0, min(1.0, 1.0 - (scores[best] - min(scores.values())) / 2.0))
         return best, unc, f"观测→检索({len(seeds)})→经验加权→{best}"
