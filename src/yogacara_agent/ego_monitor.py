@@ -158,20 +158,21 @@ class EgoMonitor:
 
     # ── 四智指标汇总 ─────────────────────────────────────────────
 
-    def four_wisdoms_report(self, intro_logger: IntrospectionLogger | None = None) -> dict[str, Any]:
+    def four_wisdoms_report(self, intro_logger: IntrospectionLogger | None = None, mirror_ratio: float = 0.0) -> dict[str, Any]:
         """
         返回四智的当前量化指标。
         基于最近 20 条评估计算。
 
         Args:
             intro_logger: 可选，内省记录器（用于计算成所作智）
+            mirror_ratio: 可选，大圆镜智 = 圆成实种子 / 总分类种子
         """
         history = self.ego_score_history[-self.long_term_window :]
         prajna_hist = self._prajna_history[-self.long_term_window :]
 
         if not history:
             return {
-                "大圆镜智": {"ratio": 0.0, "status": "无种子数据"},
+                "大圆镜智": {"ratio": mirror_ratio, "status": "无种子数据"},
                 "平等性智": {"score": 0.0, "status": "无评估数据"},
                 "妙观察智": {"ratio": 0.0, "status": "无评估数据"},
                 "成所作智": {"status": "待集成"},
@@ -189,8 +190,8 @@ class EgoMonitor:
 
         return {
             "大圆镜智": {
-                "ratio": 0.0,  # 需要种子分类系统才有意义
-                "status": "待种子分类系统集成",
+                "ratio": mirror_ratio,
+                "status": "达标" if mirror_ratio >= 0.6 else "未达标",
                 "target": ">60%",
             },
             "平等性智": {
