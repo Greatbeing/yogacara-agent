@@ -95,6 +95,9 @@ class GridSimEnv:
         self.agent_pos = [nx, ny]
         self.step_count += 1
         reward = -0.1
+        # GridSimV2: STAY has positive reward (existence bonus)
+        if action == "STAY":
+            reward += 0.5
         pos = tuple(self.agent_pos)
         if pos in self.resources:
             reward = 5.0
@@ -152,20 +155,20 @@ class ManasController:
     def __init__(self):
         self.reflections = 0
         self.last_intercept = -10
-        self.cooldown = 4
+        self.cooldown = 5
 
     def filter(self, action, obs, unc, step, recent_rew, pos_hist):
         if step - self.last_intercept < self.cooldown:
             return action, True, "冷却放行"
         target_risk = 1.0 if obs["grid_view"][ACTION_TO_IDX.get(action, 4)] == -1.0 else 0.0
         stagnation = step > 15 and len(recent_rew) >= 5 and sum(recent_rew) <= -0.48
-        loop = step > 12 and len(pos_hist) >= 5 and len(set(pos_hist)) <= 2
+        loop = step > 15 and len(pos_hist) >= 6 and len(set(pos_hist)) <= 2
         threshold = 0.45 + min(0.15, step / 80.0)
         danger = target_risk * 0.8 + max(0.0, unc - 0.80) * 0.2
         if danger > threshold or stagnation or loop:
             self.reflections += 1
             self.last_intercept = step
-            fallback = random.choice([a for a in ["UP", "DOWN", "LEFT", "RIGHT"] if a != action])
+            fallback = random.choice([a for a in ["UP", "DOWN", "LEFT", "RIGHT", "STAY"] if a != action])
             return fallback, False, f"[末那拦截] 风险:{target_risk:.1f} 停滞:{stagnation} 循环:{loop} → 换向:{fallback}"
         return action, True, "放行"
 
@@ -246,14 +249,42 @@ async def node_plan(state: YogacaraState) -> YogacaraState:
         best_dir_c = "RIGHT" if nearest[1] > pos[1] else "LEFT" if nearest[1] < pos[1] else "STAY"
         dist_bonus = 0.4
 
-    scores = {}
+    # Stuck detection: reuse pos_history
+    pos_hist = state["pos_history"]
+    is_stuck = len(pos_hist) >= 3 and len(set(pos_hist[-3:])) == 1
+    # Exploration force: too many steps without finding resource
+    exploration_force = state["step"] >= 15 and len(env.resources) > 0
+
+    # Two-pass scoring (GridSimV2): base → uncertainty bias
+    base_scores = {}
     for a in ACTIONS:
         idx = ACTION_TO_IDX[a]
         base = view[idx] if 0 <= idx < 9 else -0.5
         pos_b = sum(s["rew"] * s["imp"] for s in state["seeds"] if s["act"] == a and s["rew"] > 0) * 0.8
         neg_p = sum(abs(s["rew"]) * s["imp"] for s in state["seeds"] if s["act"] == a and s["rew"] < 0) * 0.5
         approach = dist_bonus if best_dir_r is not None and a in (best_dir_r, best_dir_c) else 0.0
-        scores[a] = base + pos_b - neg_p + approach + (0.25 if a != "STAY" else -0.8) + random.uniform(-0.03, 0.03)
+        base_scores[a] = base + pos_b - neg_p + approach + random.uniform(-0.03, 0.03)
+
+    # Compute base uncertainty for bias
+    _best_base = max(base_scores, key=lambda k: base_scores[k])
+    unc_base = max(0.0, min(1.0, 1.0 - (base_scores[_best_base] - min(base_scores.values())) / 2.0))
+
+    # Apply uncertainty-based bias (GridSimV2) + stuck/exploration overrides
+    scores = {}
+    for a in ACTIONS:
+        has_approach = best_dir_r is not None and a in (best_dir_r, best_dir_c)
+        if is_stuck:
+            bias = -0.8 if a == "STAY" else 0.35
+        elif exploration_force:
+            bias = -0.8 if a == "STAY" else 0.2
+        elif unc_base >= 0.5 and not has_approach:
+            bias = 0.30 if a == "STAY" else -0.35
+        elif unc_base < 0.3:
+            bias = -0.20 if a == "STAY" else 0.15
+        else:
+            bias = 0.0
+        scores[a] = base_scores[a] + bias
+
     best = max(scores, key=lambda k: scores[k])  # type: ignore[arg-type]
     unc = max(0.0, min(1.0, 1.0 - (scores[best] - min(scores.values())) / 2.0))
     state["action"] = best
@@ -283,12 +314,10 @@ def _build_reasoning(state: YogacaraState, best_action: str, scores: dict) -> st
 async def node_introspect(state: YogacaraState) -> YogacaraState:
     """
     内省节点（第六识的自我观察）。
-
-    在每次决策后调用，对认知过程做结构化记录。
-    这是"自指环"的核心——Agent 观察自己的决策过程，
-    积累数据后才能谈"转依"。
+    在 execute 之后调用，obs 已包含 reward。
     """
     logger = _get_introspection_logger()
+    ego_mon = _get_ego_monitor()
     plan_scores = state["plan_scores"]
     if plan_scores is None:
         alternatives = ACTIONS
@@ -299,12 +328,19 @@ async def node_introspect(state: YogacaraState) -> YogacaraState:
         score_best = plan_scores.get(state["action"], 0.0)
         score_second = max((v for k, v in plan_scores.items() if k != state["action"]), default=0.0)
 
+    # 确保 obs 包含 reward（compute_wisdom_of_action 需要）
+    obs_with_reward = dict(state["obs"])
+    obs_with_reward["reward"] = state["reward"]
+
     record = logger.observe(
         step=state["step"],
-        obs=state["obs"],
+        obs=obs_with_reward,
         action=state["action"],
         unc=state["unc"],
-        seeds_retrieved=state["seeds"],
+        seeds_retrieved=[
+            {"rew": s.get("rew", 0), "action": s.get("act", ""), "importance": s.get("imp", 0)}
+            for s in state["seeds"]
+        ],
         reasoning=state.get("reasoning", ""),
         alternatives=alternatives,
         manas_intercepted=not state["manas_passed"],
@@ -319,68 +355,34 @@ async def node_introspect(state: YogacaraState) -> YogacaraState:
         "decision_gap": record.decision_gap,
         "reasoning": record.reasoning,
     }
+    # 我执评估（在 execute 之后，obs 包含 reward）
+    ego = ego_mon.assess(record)
+    state["ego_alert"] = {
+        "ego_score": ego.ego_score,
+        "long_term_ego": ego.long_term_ego,
+        "triggered": ego.triggered,
+        "recommendation": ego.recommendation,
+    }
     return state
 
 
 async def node_manas(state: YogacaraState) -> YogacaraState:
     """
-    增强的末那识节点：同时处理环境安全 + 认知我执。
-
-    原功能：环境安全拦截（陷阱、停滞、循环）
-    新增功能：认知我执评估 → 生成转依提醒（不强制拦截）
+    末那识节点：环境安全拦截。
+    认知我执评估已移到 node_introspect（execute 之后）。
     """
-    # 原功能：环境安全过滤
     final, passed, log = manas.filter(
         state["action"],
         state["obs"],
         state["unc"],
         state["step"],
         deque(state["recent_rewards"], maxlen=5),
-        deque(state["pos_history"], maxlen=5),
+        deque(state["pos_history"], maxlen=6),
     )
     state["action"] = final
     state["manas_passed"] = passed
     if not passed:
         print(f"\033[33m{log}\033[0m")
-
-    # 新增：我执评估（仅提醒，不拦截）
-    _int_rec = state.get("introspection_record")
-    if _int_rec is not None:
-        from yogacara_agent.introspection import IntrospectionRecord
-
-        rec_data: _IntrospectionRecordData = _int_rec  # type: ignore[assignment, misc]
-        rec = IntrospectionRecord(
-            step=rec_data["step"],
-            timestamp=0.0,
-            obs=state["obs"],
-            action=final,
-            unc=rec_data["unc"],
-            seeds_retrieved=state["seeds"],
-            reasoning=rec_data.get("reasoning", "") or "",
-            alternatives=[],
-            ego_markers=rec_data.get("ego_markers", []) or [],
-            nature=rec_data.get("nature", "") or "",
-            nature_confidence=0.5,
-            score_best=0.0,
-            score_second=0.0,
-            decision_gap=rec_data.get("decision_gap", 0.0),
-            manas_intercepted=not passed,
-        )
-        ego = _get_ego_monitor().assess(rec)
-        state["ego_alert"] = {
-            "ego_score": ego.ego_score,
-            "long_term_ego": ego.long_term_ego,
-            "triggered": ego.triggered,
-            "recommendation": ego.recommendation,
-            "equanimity_wisdom": ego.equanimity_wisdom,
-            "prajna_wisdom": ego.prajna_wisdom,
-        }
-        if ego.triggered:
-            nature_tag = rec_data.get("nature", "")
-            print(
-                f"\033[35m[末那识提醒 step {state['step']}] {ego.recommendation} | 三性:{nature_tag} | 平等性智:{ego.equanimity_wisdom:.0%} 妙观察智:{ego.prajna_wisdom:.0%}\033[0m"
-            )
-
     return state
 
 
@@ -477,10 +479,10 @@ def build_graph() -> CompiledStateGraph[YogacaraState, None, YogacaraState]:
     wf.set_entry_point("perceive")
     for e in [
         ("perceive", "plan"),
-        ("plan", "introspect"),
-        ("introspect", "manas"),
+        ("plan", "manas"),
         ("manas", "execute"),
-        ("execute", "store"),
+        ("execute", "introspect"),
+        ("introspect", "store"),
     ]:
         wf.add_edge(*e)
     wf.add_conditional_edges("store", check_done, {"continue": "perceive", "end": END})
@@ -522,57 +524,39 @@ async def main():
     total_steps = final_state["step"]
     total_reward = sum(final_state["recent_rewards"])
     print(f"\n>> 运行结束 | 步数:{total_steps} | 累计奖励:{total_reward:.2f} | 末那反思:{manas.reflections}次")
-    # Phase3: 四智量化报告（基于种子分类统计）
+    # Phase3: 四智量化报告（统一用 ego_monitor.four_wisdoms_report）
     print("\n\033[36m~ 四智转依进度报告 (Phase3 量化版) ~\033[0m")
-    # 1. 大圆镜智 = 圆成实种子占比
-    mirror_ratio = _parinispanna_count / _total_classified if _total_classified > 0 else 0
-    mirror_status = "达标" if mirror_ratio >= 0.6 else "未达标"
-    mirror_sc = "\033[32m" if mirror_status == "达标" else "\033[33m"
-    print(f"  大圆镜智: {mirror_sc}{mirror_status}\033[0m  圆成实占比:{mirror_ratio:.1%} (目标:>60%)")
-    # 2. 平等性智 = 我执分数均值（来自ego_monitor）
-    report = _get_ego_monitor().four_wisdoms_report()
-    equality_data = report.get("平等性智", {})
-    if isinstance(equality_data, dict):
-        eq_raw = equality_data.get("raw_long_term_ego", "")
-        eq_status = equality_data.get("status", "")
-        eq_sc = "\033[32m" if "达标" in eq_status else "\033[33m"
-        print(f"  平等性智: {eq_sc}{eq_status}\033[0m  我执均值:{eq_raw} (目标:<0.3)")
-    else:
-        print(f"  平等性智: {equality_data}")
-    # 3. 妙观察智 = 遍计所执比例（来自内省摘要）
-    summary = _get_introspection_logger().recent_summary()
-    total_nature = sum(summary["nature_distribution"].values())
-    parikalpita_ratio = summary["nature_distribution"]["遍计所执"] / total_nature if total_nature > 0 else 0
-    prajna_status = "达标" if parikalpita_ratio <= 0.15 else "未达标"
-    prajna_sc = "\033[32m" if prajna_status == "达标" else "\033[33m"
-    print(f"  妙观察智: {prajna_sc}{prajna_status}\033[0m  遍计所执比例:{parikalpita_ratio:.1%} (目标:<15%)")
-    # 4. 成所作智 = 感知-行动-反馈闭环完成率
-    # 计算：高奖励决策占比（奖励>0且非异熟种=环境奖励与预期一致）
-    total_seeds = sum(_seed_counts.values())
-    vipaka_count = _seed_counts["异熟种"]
-    non_vipaka = total_seeds - vipaka_count
-    # 成所作智：非异熟种中，奖励为正的占比 = 前五识如实反映环境
-    # 简化计算：用 recent_rewards 中正奖励比例
-    positive_rewards = sum(1 for r in final_state["recent_rewards"] if r > 0)
-    action_ratio = positive_rewards / len(final_state["recent_rewards"]) if final_state["recent_rewards"] else 0
-    action_status = "达标" if action_ratio >= 0.9 else "未达标"
-    action_sc = "\033[32m" if action_status == "达标" else "\033[33m"
-    print(f"  成所作智: {action_sc}{action_status}\033[0m  正反馈率:{action_ratio:.1%} (目标:>90%)")
-    # 内省数据摘要
-    print("\n\033[36m~ 内省数据摘要（最近20步）~\033[0m")
-    print(
-        f"  三性: 圆成实{summary['nature_distribution']['圆成实']} | 依他起{summary['nature_distribution']['依他起']} | 遍计所执{summary['nature_distribution']['遍计所执']}"
-    )
-    print(f"  我执模式: {summary['ego_patterns']}  末那拦截率:{summary['intercept_rate']:.0%}")
-    # 种子分类统计
-    print("\n\033[36m~ 种子分类统计（全程）~\033[0m")
-    print(f"  名言种: {_seed_counts['名言种']} | 业种: {_seed_counts['业种']} | 异熟种: {_seed_counts['异熟种']}")
-    if total_seeds > 0:
-        print(
-            f"  占比: 名言{_seed_counts['名言种'] * 100 // total_seeds}% | 业{_seed_counts['业种'] * 100 // total_seeds}% | 异熟{_seed_counts['异熟种'] * 100 // total_seeds}%"
-        )
-        print(f"  圆成实种子: {_parinispanna_count}/{_total_classified} ({mirror_ratio:.1%})")
+    intro = _get_introspection_logger()
+    ego = _get_ego_monitor()
+    summary = intro.recent_summary()
+    nature_dist = summary["nature_distribution"]
+    total_natures = sum(nature_dist.values()) or 1
+    mirror_ratio = intro._parinispanna_count / intro._total_classified if intro._total_classified > 0 else 0
+    report = ego.four_wisdoms_report(intro_logger=intro, mirror_ratio=mirror_ratio)
+    print(f"  圆成实比例  : {mirror_ratio:.1%} ({intro._parinispanna_count}/{intro._total_classified})")
+    for name, data in report.items():
+        if not isinstance(data, dict):
+            print(f"  {name}: {data}")
+            continue
+        status = data.get("status", "")
+        icon = "OK " if status == "达标" else "!! " if "未达标" in status else "?? "
+        if name == "大圆镜智":
+            print(f"  {icon} {name}: {mirror_ratio*100:.1f}% (target >60%) | {status}")
+        elif name == "平等性智":
+            print(f"  {icon} {name}: {data.get('raw_long_term_ego', '?')} (target <0.3) | {status}")
+        elif name == "妙观察智":
+            print(f"  {icon} {name}: {data.get('raw_prajna_ratio', '?')} (target <15%) | {status}")
+        elif name == "成所作智":
+            score = data.get("score", "?")
+            res = data.get("resources_found", "?")
+            steps = data.get("total_steps", "?")
+            print(f"  {icon} {name}: score={score} | {status}")
+            if isinstance(res, int) and isinstance(steps, int):
+                print(f"       资源发现: {res}/3 ({steps}步中)")
 
 
 if __name__ == "__main__":
+    import sys
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
     asyncio.run(main())
