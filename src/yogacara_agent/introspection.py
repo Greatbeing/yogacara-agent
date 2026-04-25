@@ -253,23 +253,14 @@ class IntrospectionLogger:
             rew = r.obs.get("reward", 0)
             act = r.action
             # 资源格：reward ≈ +5.0
-            if rew >= 4.0:
-                matched += 1
-            # 陷阱格：reward ≈ -3.0
-            elif rew <= -2.0:
-                matched += 1
-            # 空走/STAY：reward 在 [-0.2, +0.7] 范围
-            elif -0.2 <= rew <= 0.7:
-                matched += 1
-            # 移动未踩到东西：-0.2 ~ +0.1 范围也算吻合
-            elif rew == -0.1 and act != "STAY":
+            if rew >= 4.0 or rew <= -2.0 or -0.2 <= rew <= 0.7 or rew == -0.1 and act != "STAY":
                 matched += 1
         # 吻合度（归一化到 [0,1]，0.8 以上算达标）
         alignment_rate = matched / total
         alignment_score = min(1.0, alignment_rate / 0.8)  # 80%吻合率 = 1.0
 
         # 成所作智综合分：三个指标加权平均
-        wisdom_score = (loop_rate * 0.3 + intent_rate * 0.3 + alignment_score * 0.4)
+        wisdom_score = loop_rate * 0.3 + intent_rate * 0.3 + alignment_score * 0.4
 
         # 资源发现率（额外参考）
         resources_found = sum(1 for r in records if r.obs.get("reward", 0) >= 4.0)
@@ -281,11 +272,7 @@ class IntrospectionLogger:
             "alignment_rate": round(alignment_rate, 3),
             "resources_found": resources_found,
             "total_steps": total,
-            "status": (
-                "达标" if wisdom_score >= 0.7
-                else "发展中" if wisdom_score >= 0.4
-                else "待提升"
-            ),
+            "status": ("达标" if wisdom_score >= 0.7 else "发展中" if wisdom_score >= 0.4 else "待提升"),
         }
 
     def get_last_record(self) -> IntrospectionRecord | None:
