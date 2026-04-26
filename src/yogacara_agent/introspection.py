@@ -128,8 +128,6 @@ class IntrospectionLogger:
         - 遍计所执（脑补）：高不确定性 + 无经验支持 + 强行决策
         """
         seed_count = len(seeds)
-        has_good_seeds = any(s.get("rew", 0) > 0 for s in seeds)
-        has_bad_seeds = any(s.get("rew", 0) < 0 for s in seeds)
 
         # 优化版分类：圆成实门槛放宽，遍计所执门槛收紧
         has_good_seed = any(s.get("rew", 0) > 0 for s in seeds)
@@ -173,12 +171,11 @@ class IntrospectionLogger:
             markers.append("俱生贪: 高不确定却执取行动而非等待")
 
         # ── 3. 俱生执（惯性模式）────────────────────────────────
-        # 重复相同行动 3 次以上
+        # 重复相同行动 3 次以上（但排除被 manas 纠正后的重复）
         if len(recent_actions) >= 3 and len(set(recent_actions[-3:])) == 1:
             markers.append("俱生执: 习惯性重复同一动作")
-        # 末那识已拦截，说明检测到了模式问题
-        if manas_intercepted:
-            markers.append("俱生执: 末那识已识别惯性模式")
+        # 末那拦截 = 自指环的自我纠正，不算我执模式
+        # （纠正成功 = 觉察力在运作，恰恰是"放下执取"的表现）
 
         # ── 4. 俱生慢（回避模式）────────────────────────────────
         # 高不确定性时完全不选 STAY（不承认不知道）
