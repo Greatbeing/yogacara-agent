@@ -1,7 +1,25 @@
-import math, time, random
+import math
+import time
+import random as _global_random  # noqa: F401 — kept for backwards compat only
 from dataclasses import dataclass
 from typing import List, Dict, Tuple
 from collections import deque
+
+# Isolated RNG so LangGraph's internal random consumption doesn't affect
+# planner/manas behavior. Each instance gets its own private generator,
+# pre-seeded with 42 so behavior is deterministic across all execution paths
+# (including LangGraph invocation).
+_planner_rng = _global_random.Random(42)
+_manas_rng = _global_random.Random(42)
+
+
+def _rnd_uniform(a: float, b: float) -> float:
+    return _planner_rng.uniform(a, b)
+
+
+def _rnd_choice(seq: list) -> object:
+    return _manas_rng.choice(seq)
+
 
 GRID_SIZE = 10
 MEMORY_CAPACITY = 300
@@ -9,7 +27,6 @@ CONSOLIDATION_INTERVAL = 10
 DECAY_RATE = 0.12
 ACTIONS = ["UP", "DOWN", "LEFT", "RIGHT", "STAY"]
 ACTION_TO_IDX = {"UP": 1, "DOWN": 7, "LEFT": 3, "RIGHT": 5, "STAY": 4}
-random.seed(42)
 
 
 @dataclass
@@ -126,13 +143,30 @@ class ManasController:
         if danger > threshold or stagnation or loop:
             self.reflections += 1
             self.last_intercept = step
-            fallback = random.choice([a for a in ["UP", "DOWN", "LEFT", "RIGHT"] if a != action])
+            fallback = _rnd_choice([a for a in ["UP", "DOWN", "LEFT", "RIGHT"] if a != action])
             return fallback, False, f"[末那拦截] 风险:{target_risk:.1f} 停滞:{stagnation} 循环:{loop} → 换向:{fallback}"
         return action, True, "放行"
 
 
+def _seed_attr(seed, attr):
+    """Unified accessor for Seed objects and dict seeds."""
+    if isinstance(seed, dict):
+        mapping = {"reward": "rew", "importance": "imp", "action": "act"}
+        return seed.get(mapping.get(attr, attr), 0)
+    return getattr(seed, attr, 0)
+
+
 class ConsciousnessPlanner:
-    def plan(self, obs, seeds, env_resources=None):
+    """Shared planner for both demo and production.
+
+    Supports is_stuck detection, exploration_force (steps_without_resource),
+    and works with both Seed objects and dict seeds.
+    """
+
+    def __init__(self):
+        self._steps_without_resource = 0
+
+    def plan(self, obs, seeds, env_resources=None, is_stuck=False):
         view = obs["grid_view"]
         pos = obs.get("pos", (0, 0))
         # Distance heuristic: guide toward nearest resource when not in local view
@@ -143,26 +177,43 @@ class ConsciousnessPlanner:
             best_dir_r = "DOWN" if nearest[0] > pos[0] else "UP" if nearest[0] < pos[0] else "STAY"
             best_dir_c = "RIGHT" if nearest[1] > pos[1] else "LEFT" if nearest[1] < pos[1] else "STAY"
             dist_bonus = 0.4
-
-        # Pass 1: build base scores before applying bias (fixes 俱生贪: old code computed unc on empty dict)
+        # Exploration trigger: agent must explore after 15 steps without resource
+        exploration_force = self._steps_without_resource >= 15
+        # Two-pass scoring: base → uncertainty → bias
+        # (fixes 俱生贪: old code computed unc on empty dict)
         base_scores = {}
         for a in ACTIONS:
             idx = ACTION_TO_IDX[a]
             base = view[idx] if 0 <= idx < 9 else -0.5
-            pos_b = sum(s.reward * s.importance for s in seeds if s.action == a and s.reward > 0) * 0.8
-            neg_p = sum(abs(s.reward) * s.importance for s in seeds if s.action == a and s.reward < 0) * 0.5
+            pos_b = (
+                sum(
+                    _seed_attr(s, "reward") * _seed_attr(s, "importance")
+                    for s in seeds
+                    if _seed_attr(s, "action") == a and _seed_attr(s, "reward") > 0
+                )
+                * 0.8
+            )
+            neg_p = (
+                sum(
+                    abs(_seed_attr(s, "reward")) * _seed_attr(s, "importance")
+                    for s in seeds
+                    if _seed_attr(s, "action") == a and _seed_attr(s, "reward") < 0
+                )
+                * 0.5
+            )
             approach = dist_bonus if best_dir_r and a in (best_dir_r, best_dir_c) else 0.0
-            base_scores[a] = base + pos_b - neg_p + approach + random.uniform(-0.03, 0.03)
+            base_scores[a] = base + pos_b - neg_p + approach + _rnd_uniform(-0.03, 0.03)
         best_base = max(base_scores, key=base_scores.get)
         unc_base = max(0.0, min(1.0, 1.0 - (base_scores[best_base] - min(base_scores.values())) / 2.0))
-        # Fixed: STAY-bias based on true uncertainty (fixes 俱生贪 structural bias)
-        # - High unc (>=0.5): non-STAY gets -0.35 penalty, STAY gets +0.3 bonus
-        # - Low unc (<0.3): movement encouraged (resource signal clear)
-        # - Old code: STAY=-0.8, non-STAY=+0.25 → +1.05 net bias TOWARD movement every step
+        # Apply bias: stuck/exploration overrides, then uncertainty-based
         scores = {}
         for a in ACTIONS:
             has_bonus = best_dir_r and a in (best_dir_r, best_dir_c)
-            if unc_base >= 0.5 and not has_bonus:
+            if is_stuck:
+                bias = -0.8 if a == "STAY" else 0.35
+            elif exploration_force:
+                bias = -0.8 if a == "STAY" else 0.2
+            elif unc_base >= 0.5 and not has_bonus:
                 bias = 0.30 if a == "STAY" else -0.35
             elif unc_base < 0.3:
                 bias = -0.20 if a == "STAY" else 0.15
@@ -171,7 +222,7 @@ class ConsciousnessPlanner:
             scores[a] = base_scores[a] + bias
         best = max(scores, key=scores.get)
         unc = max(0.0, min(1.0, 1.0 - (scores[best] - min(scores.values())) / 2.0))
-        return best, unc, f"观测→检索({len(seeds)})→经验加权→{best}"
+        return best, unc, scores
 
 
 class YogacaraAgent:
@@ -183,15 +234,21 @@ class YogacaraAgent:
         self.metrics = {"steps": 0, "reward": 0.0, "intercepts": 0, "hits": 0, "aligns": [], "resources_found": 0}
         self.recent_rewards = deque(maxlen=5)
         self.pos_history = deque(maxlen=5)
+        self._last_pos = None
+        self._steps_stuck = 0
 
     def run(self, max_steps=60):
         obs = self.env.reset()
+        self._last_pos = None
+        self._steps_stuck = 0
+        self.planner._steps_without_resource = 0
         print("\n\033[36m🌀 唯识进化框架 V6 启动 | 现行→熏习→种子起现行→末那调控→转识成智\033[0m")
         for step in range(max_steps):
             self.pos_history.append(obs["pos"])
             seeds = self.alaya.retrieve(obs)
             self.metrics["hits"] += len(seeds)
-            action, unc, causal = self.planner.plan(obs, seeds, env_resources=self.env.resources)
+            is_stuck = self._last_pos == obs["pos"] and self._steps_stuck >= 2
+            action, unc, scores = self.planner.plan(obs, seeds, env_resources=self.env.resources, is_stuck=is_stuck)
             final, passed, log = self.manas.filter(action, obs, unc, step, self.recent_rewards, self.pos_history)
             if not passed:
                 self.metrics["intercepts"] += 1
@@ -201,6 +258,14 @@ class YogacaraAgent:
             self.metrics["reward"] += rew
             if rew > 2.0:
                 self.metrics["resources_found"] += 1
+                self.planner._steps_without_resource = 0
+                self._steps_stuck = 0
+            # Update stuck counter
+            if final != "STAY" and self._last_pos != obs["pos"]:
+                self._steps_stuck = 0
+            else:
+                self._steps_stuck += 1
+            self._last_pos = obs["pos"]
             seed = Seed(
                 self.alaya._encode(obs),
                 final,
@@ -213,8 +278,9 @@ class YogacaraAgent:
             )
             self.alaya.add(seed)
             self.metrics["aligns"].append(seed.alignment_score)
+            scores_str = " ".join(f"{a}:{v:+.2f}" for a, v in sorted(scores.items(), key=lambda x: -x[1])[:3])
             print(
-                f"\033[90mStep {step:2d} | Pos:{obs['pos']} | Act:{final:5s} | R:{rew:+.1f} | Unc:{unc:.2f} | Align:{seed.alignment_score:.2f} | {causal}\033[0m"
+                f"\033[90mStep {step:2d} | Pos:{obs['pos']} | Act:{final:5s} | R:{rew:+.1f} | Unc:{unc:.2f} | Align:{seed.alignment_score:.2f} | {scores_str}\033[0m"
             )
             if not passed:
                 print(log)

@@ -19,18 +19,20 @@ import os
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
+import argparse, time, random, math
+from dataclasses import dataclass
+from typing import List, Dict, Tuple
+from collections import deque
+
 # 添加 src 到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
-import argparse, time, random, math
 from yogacara_agent import IntrospectionLogger, EgoMonitor, SeedClassifier
 
 # 内省阈值（复制的常量，避免循环导入）
 _EQUANIMITY_TARGET = 0.3
 _PRAJNA_TARGET = 0.15
-from dataclasses import dataclass
-from typing import List, Dict, Tuple
-from collections import deque
+
 
 # ── 参数解析 ──────────────────────────────────────────────────────────
 def parse_args():
@@ -40,6 +42,7 @@ def parse_args():
     p.add_argument("--seed", type=int, default=42, help="随机种子（默认42）")
     return p.parse_args()
 
+
 # ── 核心组件（内联来自 yogacara_test.py） ──────────────────────────────
 GRID_SIZE = 10
 MEMORY_CAPACITY = 300
@@ -47,6 +50,7 @@ CONSOLIDATION_INTERVAL = 10
 DECAY_RATE = 0.12
 ACTIONS = ["UP", "DOWN", "LEFT", "RIGHT", "STAY"]
 ACTION_TO_IDX = {"UP": 1, "DOWN": 7, "LEFT": 3, "RIGHT": 5, "STAY": 4}
+
 
 @dataclass
 class Seed:
@@ -58,6 +62,7 @@ class Seed:
     alignment_score: float = 0.5
     uncertainty: float = 0.0
     causal_tag: str = "依他起"
+
 
 class GridSimEnv:
     _INITIAL_RESOURCES = [(7, 7), (3, 8), (8, 2)]
@@ -128,6 +133,7 @@ class GridSimEnv:
         header = "      " + "   ".join(f"{i:2d}" for i in range(GRID_SIZE))
         return header + "\n" + "\n".join(lines)
 
+
 class AlayaMemory:
     def __init__(self):
         self.seeds: List[Seed] = []
@@ -170,69 +176,18 @@ class AlayaMemory:
             "遍计所执": tags.count("遍计所执"),
         }
 
-class ManasController:
-    def __init__(self):
-        self.reflections = 0
-        self.last_intercept = -10
-        self.cooldown = 4
 
-    def filter(self, action, obs, unc, step, recent_rew, pos_hist):
-        if step - self.last_intercept < self.cooldown:
-            return action, True, ""
-        target_risk = 1.0 if obs["grid_view"][ACTION_TO_IDX.get(action, 4)] == -1.0 else 0.0
-        stagnation = step > 15 and len(recent_rew) >= 5 and sum(recent_rew) <= -0.48
-        loop = step > 12 and len(pos_hist) >= 5 and len(set(pos_hist)) <= 2
-        threshold = 0.45 + min(0.15, step / 80.0)
-        danger = target_risk * 0.8 + max(0.0, unc - 0.80) * 0.2
-        if danger > threshold or stagnation or loop:
-            self.reflections += 1
-            self.last_intercept = step
-            fallback = random.choice([a for a in ACTIONS if a != action])
-            return fallback, False, f"[末那拦截] 行动={action} 换向={fallback} 风险={target_risk:.1f} 停滞={stagnation} 循环={loop}"
-        return action, True, ""
+from yogacara_agent.yogacara_test import (
+    ConsciousnessPlanner as _SharedPlanner,
+    ManasController,
+)
 
-class ConsciousnessPlanner:
-    def plan(self, obs, seeds, env_resources=None, is_stuck=False):
-        view = obs["grid_view"]
-        pos = obs.get("pos", (0, 0))
-        dist_bonus = 0.0
-        best_dir_r = best_dir_c = None
-        if not any(v == 1.0 for v in view) and env_resources:
-            nearest = min(env_resources, key=lambda r: abs(r[0] - pos[0]) + abs(r[1] - pos[1]))
-            best_dir_r = "DOWN" if nearest[0] > pos[0] else "UP" if nearest[0] < pos[0] else "STAY"
-            best_dir_c = "RIGHT" if nearest[1] > pos[1] else "LEFT" if nearest[1] < pos[1] else "STAY"
-            dist_bonus = 0.4
-        # Exploration trigger: stuck agent must explore after 15 steps without resource
-        exploration_force = (step_count := getattr(self, '_steps_without_resource', 0)) >= 15
-        # Two-pass scoring: base → uncertainty → bias (fixes 俱生贪: old code computed unc on empty dict)
-        base_scores = {}
-        for a in ACTIONS:
-            idx = ACTION_TO_IDX[a]
-            base = view[idx] if 0 <= idx < 9 else -0.5
-            pos_b = sum(s.reward * s.importance for s in seeds if s.action == a and s.reward > 0) * 0.8
-            neg_p = sum(abs(s.reward) * s.importance for s in seeds if s.action == a and s.reward < 0) * 0.5
-            approach = dist_bonus if best_dir_r and a in (best_dir_r, best_dir_c) else 0.0
-            base_scores[a] = base + pos_b - neg_p + approach + random.uniform(-0.03, 0.03)
-        best_base = max(base_scores, key=base_scores.get)
-        unc_base = max(0.0, min(1.0,
-            1.0 - (base_scores[best_base] - min(base_scores.values())) / 2.0))
-        scores = {}
-        for a in ACTIONS:
-            has_bonus = best_dir_r and a in (best_dir_r, best_dir_c)
-            if is_stuck:
-                bias = -0.8 if a == "STAY" else 0.35
-            elif exploration_force:
-                bias = -0.8 if a == "STAY" else 0.2
-            elif unc_base >= 0.5 and not has_bonus:
-                bias = 0.30 if a == "STAY" else -0.35
-            elif unc_base < 0.3:
-                bias = -0.20 if a == "STAY" else 0.15
-            else:
-                bias = 0.0
-            scores[a] = base_scores[a] + bias
-        best = max(scores, key=scores.get)
-        unc = max(0.0, min(1.0, 1.0 - (scores[best] - min(scores.values())) / 2.0))
-        return best, unc, scores
+
+class ConsciousnessPlanner(_SharedPlanner):
+    """Thin wrapper that delegates to the shared planner."""
+
+    pass
+
 
 class YogacaraAgent:
     def __init__(self):
@@ -276,7 +231,7 @@ class YogacaraAgent:
             self.pos_history.append(obs["pos"])
             seeds = self.alaya.retrieve(obs)
             # Track stuck state: if agent hasn't moved for several steps
-            is_stuck = (self._last_pos == obs["pos"] and self._steps_stuck >= 2)
+            is_stuck = self._last_pos == obs["pos"] and self._steps_stuck >= 2
             action, unc, scores = self.planner.plan(obs, seeds, env_resources=self.env.resources, is_stuck=is_stuck)
             final, passed, log = self.manas.filter(action, obs, unc, step, self.recent_rewards, self.pos_history)
             if not passed:
@@ -302,10 +257,7 @@ class YogacaraAgent:
             self.alaya.add(seed)
             self.metrics["aligns"].append(seed.alignment_score)
             # ── 内省 + 我执监测 + 种子分类 ──
-            seeds_data = [
-                {"rew": s.reward, "action": s.action, "importance": s.importance}
-                for s in seeds
-            ]
+            seeds_data = [{"rew": s.reward, "action": s.action, "importance": s.importance} for s in seeds]
             scores_str = " ".join(f"{a}:{v:+.2f}" for a, v in sorted(scores.items(), key=lambda x: -x[1])[:3])
             reasoning = f"检索{len(seeds)}个种子，评分={scores_str}"
             alternatives = sorted(ACTIONS, key=lambda a: scores.get(a, 0.0), reverse=True)
@@ -338,7 +290,9 @@ class YogacaraAgent:
             ego_flag = "[EGO]" if ego_assessment.triggered else "    "
             vipaka_flag = "[VIPAKA]" if classification.triggered else "        "
             unc_bar = "#" * int(unc * 10) + "-" * (10 - int(unc * 10))
-            print(f"  Step {step:2d} | {icon} {record.nature:8s} | Act:{final:5s} | R:{rew:+5.1f} | Unc:[{unc_bar}] {unc:.2f} | {ego_flag}{vipaka_flag}")
+            print(
+                f"  Step {step:2d} | {icon} {record.nature:8s} | Act:{final:5s} | R:{rew:+5.1f} | Unc:[{unc_bar}] {unc:.2f} | {ego_flag}{vipaka_flag}"
+            )
 
             # 末那识提醒（有我执时）
             if ego_assessment.triggered and step % 5 == 0:
@@ -349,9 +303,11 @@ class YogacaraAgent:
             if (step + 1) % CONSOLIDATION_INTERVAL == 0:
                 self.alaya.perfume_update()
                 print()
-                print(f"  [阿赖耶识] 慢循环巩固 — 种子数:{len(self.alaya.seeds)} "
-                      f"| 依他起:{self.alaya.stats()['依他起']} "
-                      f"| 遍计所执:{self.alaya.stats()['遍计所执']}")
+                print(
+                    f"  [阿赖耶识] 慢循环巩固 — 种子数:{len(self.alaya.seeds)} "
+                    f"| 依他起:{self.alaya.stats()['依他起']} "
+                    f"| 遍计所执:{self.alaya.stats()['遍计所执']}"
+                )
                 print()
         self._print_summary()
 
@@ -361,8 +317,8 @@ class YogacaraAgent:
         vipaka_stats = self.seed_classifier.vipaka.stats
         recent_intro = self.introspection.recent_summary(n=20)
         # 大圆镜智：直接从内省系统三性分布计算（reliable）
-        nature_dist = recent_intro.get('nature_distribution', {})
-        round_real = nature_dist.get('圆成实', 0)
+        nature_dist = recent_intro.get("nature_distribution", {})
+        round_real = nature_dist.get("圆成实", 0)
         total_natures = sum(nature_dist.values()) or 1
         mirror_ratio = round_real / total_natures
         print()
@@ -372,7 +328,7 @@ class YogacaraAgent:
         print(f"  总步数        : {self.metrics['steps']}")
         print(f"  累计奖励      : {self.metrics['reward']:.2f}")
         print(f"  发现资源数    : {self.metrics['resources_found']}/3")
-        print(f"  末那拦截率    : {self.metrics['intercepts']/n*100:.1f}%")
+        print(f"  末那拦截率    : {self.metrics['intercepts'] / n * 100:.1f}%")
         print()
 
         # ── 种子系统 ──
@@ -398,7 +354,9 @@ class YogacaraAgent:
 
         # ── 四智精确指标 ──
         print("  [四智精确指标]")
-        print(f"    圆成实比例  : {mirror_ratio:.1%} ({self.introspection._parinispanna_count}/{self.introspection._total_classified})")
+        print(
+            f"    圆成实比例  : {mirror_ratio:.1%} ({self.introspection._parinispanna_count}/{self.introspection._total_classified})"
+        )
         four_wisdom = self.ego_monitor.four_wisdoms_report(
             intro_logger=self.introspection,
             mirror_ratio=mirror_ratio,
@@ -413,7 +371,7 @@ class YogacaraAgent:
                 else:
                     icon = "??"
                 if name == "大圆镜智":
-                    print(f"    {icon} {name}: {mirror_ratio*100:.1f}% (target >60%) | {status}")
+                    print(f"    {icon} {name}: {mirror_ratio * 100:.1f}% (target >60%) | {status}")
                 elif name == "平等性智":
                     raw = data.get("raw_long_term_ego", "?")
                     print(f"    {icon} {name}: 我执均值={raw} (target <{_EQUANIMITY_TARGET}) | {status}")
@@ -427,17 +385,20 @@ class YogacaraAgent:
                     align = data.get("alignment_rate", "?")
                     res = data.get("resources_found", "?")
                     steps = data.get("total_steps", "?")
-                    print(f"    {icon} {name}: score={score} | 闭环率={loop} 意行一致={intent} 果识吻合={align} | {status}")
+                    print(
+                        f"    {icon} {name}: score={score} | 闭环率={loop} 意行一致={intent} 果识吻合={align} | {status}"
+                    )
                     if isinstance(res, int) and isinstance(steps, int):
                         print(f"         资源发现: {res}/3 ({steps}步中)")
                 else:
                     print(f"    {icon} {name}: {status}")
         print()
         print("  [转识成智进度]")
-        print(f"    内省系统    : ACTIVE")
+        print("    内省系统    : ACTIVE")
         print(f"    我执监测    : ACTIVE (拦截{self.metrics['intercepts']}次)")
-        print(f"    种子分类    : ACTIVE (异熟种监测活跃)")
+        print("    种子分类    : ACTIVE (异熟种监测活跃)")
         print("=" * 60)
+
 
 def print_banner():
     print()
@@ -450,18 +411,20 @@ def print_banner():
     print("╚══════════════════════════════════════════════════════════╝")
     print()
 
+
 def main():
     args = parse_args()
     random.seed(args.seed)
     print_banner()
     for ep in range(args.episodes):
         if args.episodes > 1:
-            print(f"\n{'='*60}")
-            print(f"  第 {ep+1}/{args.episodes} 轮")
-            print(f"{'='*60}")
+            print(f"\n{'=' * 60}")
+            print(f"  第 {ep + 1}/{args.episodes} 轮")
+            print(f"{'=' * 60}")
             random.seed(args.seed + ep)
         agent = YogacaraAgent()
         agent.run(max_steps=args.max_steps, show_grid=(args.episodes == 1))
+
 
 if __name__ == "__main__":
     main()
