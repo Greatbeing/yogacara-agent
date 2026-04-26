@@ -60,6 +60,7 @@ class YogacaraState(TypedDict):
     plan_scores: "dict[str, float] | None"
     reasoning: str
     steps_since_resource: int  # 探索力重置计数器
+    steps_at_same_pos: int  # 连续停留计数器（正确实现is_stuck检测）
 
 
 class _IntrospectionRecordData(TypedDict):
@@ -243,9 +244,8 @@ async def node_perceive(state: YogacaraState) -> YogacaraState:
 
 async def node_plan(state: YogacaraState) -> YogacaraState:
     """Plan using the shared ConsciousnessPlanner (same as demo)."""
-    # Stuck detection: reuse pos_history
-    pos_hist = state["pos_history"]
-    is_stuck = len(pos_hist) >= 3 and len(set(pos_hist[-3:])) == 1
+    # Stuck detection: use steps_at_same_pos (matches demo behavior correctly)
+    is_stuck = state.get("steps_at_same_pos", 0) >= 2
     # Sync exploration counter into planner
     planner._steps_without_resource = state.get("steps_since_resource", state["step"])
     # Delegate to shared planner (consumes same random numbers as demo)
@@ -365,6 +365,11 @@ async def node_execute(state: YogacaraState) -> YogacaraState:
     state["step"] += 1
     state["recent_rewards"].append(rew)
     state["pos_history"].append(next_obs["pos"])
+    # Update steps_at_same_pos counter (correct is_stuck detection)
+    if next_obs["pos"] == state["obs"].get("pos"):
+        state["steps_at_same_pos"] = state.get("steps_at_same_pos", 0) + 1
+    else:
+        state["steps_at_same_pos"] = 0
     # Sync exploration counter: demo uses counter-as-trigger (never increments
     # between resources, resets to 0 when resource found). Match that behavior.
     if rew >= 4.0:
@@ -492,6 +497,7 @@ async def main():
         "plan_scores": None,
         "reasoning": "",
         "steps_since_resource": 0,
+        "steps_at_same_pos": 0,
     }
     final_state = await graph.ainvoke(init_state)
     total_steps = final_state["step"]
@@ -501,9 +507,14 @@ async def main():
     print("\n\033[36m~ 四智转依进度报告 (Phase3 量化版) ~\033[0m")
     intro = _get_introspection_logger()
     ego = _get_ego_monitor()
-    mirror_ratio = intro._parinispanna_count / intro._total_classified if intro._total_classified > 0 else 0
+    # 与 demo 版一致：使用最近20步的三性分布计算大圆镜智
+    recent_intro = intro.recent_summary(n=20)
+    nature_dist = recent_intro.get("nature_distribution", {})
+    round_real = nature_dist.get("圆成实", 0)
+    total_natures = sum(nature_dist.values()) or 1
+    mirror_ratio = round_real / total_natures
     report = ego.four_wisdoms_report(intro_logger=intro, mirror_ratio=mirror_ratio)
-    print(f"  圆成实比例  : {mirror_ratio:.1%} ({intro._parinispanna_count}/{intro._total_classified})")
+    print(f"  圆成实比例  : {mirror_ratio:.1%} ({round_real}/{total_natures})")
     for name, data in report.items():
         if not isinstance(data, dict):
             print(f"  {name}: {data}")
