@@ -338,8 +338,7 @@ async def node_introspect(state: YogacaraState) -> YogacaraState:
         action=state["action"],
         unc=state["unc"],
         seeds_retrieved=[
-            {"rew": s.get("rew", 0), "action": s.get("act", ""), "importance": s.get("imp", 0)}
-            for s in state["seeds"]
+            {"rew": s.get("rew", 0), "action": s.get("act", ""), "importance": s.get("imp", 0)} for s in state["seeds"]
         ],
         reasoning=state.get("reasoning", ""),
         alternatives=alternatives,
@@ -541,7 +540,7 @@ async def main():
         status = data.get("status", "")
         icon = "OK " if status == "达标" else "!! " if "未达标" in status else "?? "
         if name == "大圆镜智":
-            print(f"  {icon} {name}: {mirror_ratio*100:.1f}% (target >60%) | {status}")
+            print(f"  {icon} {name}: {mirror_ratio * 100:.1f}% (target >60%) | {status}")
         elif name == "平等性智":
             print(f"  {icon} {name}: {data.get('raw_long_term_ego', '?')} (target <0.3) | {status}")
         elif name == "妙观察智":
@@ -557,6 +556,7 @@ async def main():
 
 if __name__ == "__main__":
     import sys
+
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
     asyncio.run(main())

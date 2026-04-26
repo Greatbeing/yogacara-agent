@@ -154,8 +154,7 @@ class ConsciousnessPlanner:
             approach = dist_bonus if best_dir_r and a in (best_dir_r, best_dir_c) else 0.0
             base_scores[a] = base + pos_b - neg_p + approach + random.uniform(-0.03, 0.03)
         best_base = max(base_scores, key=base_scores.get)
-        unc_base = max(0.0, min(1.0,
-            1.0 - (base_scores[best_base] - min(base_scores.values())) / 2.0))
+        unc_base = max(0.0, min(1.0, 1.0 - (base_scores[best_base] - min(base_scores.values())) / 2.0))
         # Fixed: STAY-bias based on true uncertainty (fixes 俱生贪 structural bias)
         # - High unc (>=0.5): non-STAY gets -0.35 penalty, STAY gets +0.3 bonus
         # - Low unc (<0.3): movement encouraged (resource signal clear)
