@@ -170,7 +170,7 @@ class ManasController:
         if danger > threshold or stagnation or loop:
             self.reflections += 1
             self.last_intercept = step
-            fallback = random.choice([a for a in ["UP", "DOWN", "LEFT", "RIGHT"] if a != action])
+            fallback = _rnd_choice([a for a in ["UP", "DOWN", "LEFT", "RIGHT"] if a != action])
             return fallback, False, f"[末那拦截] 风险:{target_risk:.1f} 停滞:{stagnation} 循环:{loop} → 换向:{fallback}"
         return action, True, "放行"
 
@@ -178,7 +178,7 @@ class ManasController:
 # Module-level instances (legacy, single-process only)
 # WARNING: These are NOT safe for concurrent use across requests.
 # For production, use create_session() to get isolated instances.
-from yogacara_agent.yogacara_test import ConsciousnessPlanner as _SharedPlanner
+from yogacara_agent.yogacara_test import ConsciousnessPlanner as _SharedPlanner, _rnd_choice
 
 _lock = threading.Lock()
 env = GridSimEnv()
