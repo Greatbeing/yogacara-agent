@@ -365,13 +365,11 @@ async def node_execute(state: YogacaraState) -> YogacaraState:
     state["step"] += 1
     state["recent_rewards"].append(rew)
     state["pos_history"].append(next_obs["pos"])
-    # Reset exploration counter when resource found
+    # Sync exploration counter: demo uses counter-as-trigger (never increments
+    # between resources, resets to 0 when resource found). Match that behavior.
     if rew >= 4.0:
         state["steps_since_resource"] = 0
         planner._steps_without_resource = 0  # sync with shared planner
-    else:
-        state["steps_since_resource"] = state.get("steps_since_resource", state["step"]) + 1
-        planner._steps_without_resource = state["steps_since_resource"]  # sync
     return state
 
 
