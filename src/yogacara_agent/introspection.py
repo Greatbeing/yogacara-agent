@@ -131,7 +131,10 @@ class IntrospectionLogger:
 
         # 优化版分类：圆成实门槛放宽，遍计所执门槛收紧
         has_good_seed = any(s.get("rew", 0) > 0 for s in seeds)
-        if has_good_seed and unc < 0.55 and seed_count >= 1:
+        # 圆成实：低unc + 有种子支持（无论是否positive）= 决策有依据
+        if unc < 0.35 and seed_count >= 1:
+            return "圆成实", 0.85
+        elif has_good_seed and unc < 0.55 and seed_count >= 1:
             return "圆成实", 0.80
         elif unc < 0.55 and (seed_count >= 1 or has_good_seed):
             return "依他起", 0.75
