@@ -7,10 +7,11 @@ from collections import deque
 
 try:
     from yogacara_agent.alignment_integration import AlignmentController
+
     _HAS_ALIGNMENT = True
 except ImportError:
     _HAS_ALIGNMENT = False
-    AlignmentController = None
+    _AlignmentControllerClass: type | None = None
 
 # Isolated RNG so LangGraph's internal random consumption doesn't affect
 # planner/manas behavior. Each instance gets its own private generator,
@@ -239,8 +240,8 @@ class YogacaraAgent:
         self.manas = ManasController()
         self.planner = ConsciousnessPlanner()
         self.metrics = {"steps": 0, "reward": 0.0, "intercepts": 0, "hits": 0, "aligns": [], "resources_found": 0}
-        self.recent_rewards = deque(maxlen=5)
-        self.pos_history = deque(maxlen=5)
+        self.recent_rewards: deque[float] = deque(maxlen=5)
+        self.pos_history: deque[tuple[int, int]] = deque(maxlen=5)
         self._last_pos = None
         self._steps_stuck = 0
         # ── Online alignment (DPO + EWC) ─────────────────────────────────────
@@ -261,9 +262,8 @@ class YogacaraAgent:
             is_stuck = self._last_pos == obs["pos"] and self._steps_stuck >= 2
             action, unc, scores = self.planner.plan(obs, seeds, env_resources=self.env.resources, is_stuck=is_stuck)
             final, passed, log = self.manas.filter(action, obs, unc, step, self.recent_rewards, self.pos_history)
-            if not passed:
-                self.metrics["intercepts"] += 1
-            # ── Collect DPO preference pair ──────────────────────────────────
+            next_obs, rew, done = self.env.step(final)
+            # ── Collect DPO preference pair (after step so we have reward) ───
             if self.ctrl and self.ctrl.enabled:
                 self.ctrl.collect_from_step(
                     obs=obs,
@@ -275,7 +275,6 @@ class YogacaraAgent:
                     step=step,
                     all_actions=scores,
                 )
-            next_obs, rew, done = self.env.step(final)
             self.recent_rewards.append(rew)
             self.metrics["steps"] += 1
             self.metrics["reward"] += rew

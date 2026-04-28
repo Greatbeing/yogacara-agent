@@ -13,10 +13,9 @@
 import asyncio
 import logging
 import os
-import signal
 import sys
 import threading
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from datetime import datetime
 from typing import Any, TYPE_CHECKING
 
@@ -29,8 +28,10 @@ sys.path.append(os.path.dirname(__file__))
 try:
     from security.input_sanitizer import InputSanitizer
     from security.tool_sandbox import ToolSandbox
+
     # rate_limiter.py exports a slowapi Limiter instance + setup_rate_limiting()
     from security.rate_limiter import limiter as _slowapi_limiter
+
     _HAS_SECURITY = True
 except ImportError:
     _HAS_SECURITY = False
@@ -75,9 +76,7 @@ async def lifespan(app: FastAPI):
 
     session = _get_session()
     if not loop_started:
-        _loop_task = asyncio.create_task(
-            slow_loop(session["alaya"], interval=10)
-        )
+        _loop_task = asyncio.create_task(slow_loop(session["alaya"], interval=10))
         loop_started = True
         logger.info("[API] Slow-loop started (interval=10s)")
 
@@ -89,10 +88,8 @@ async def lifespan(app: FastAPI):
 
     if _loop_task and not _loop_task.done():
         _loop_task.cancel()
-        try:
+        with suppress(asyncio.CancelledError, asyncio.TimeoutError):
             await asyncio.wait_for(asyncio.shield(_loop_task), timeout=5.0)
-        except (asyncio.CancelledError, asyncio.TimeoutError):
-            pass
         logger.info("[API] Slow-loop cancelled")
 
     # Flush alaya memory to disk
@@ -135,12 +132,8 @@ class AgentRequest(BaseModel):
     """Episode 运行请求。"""
 
     max_steps: int = Field(default=60, ge=1, le=200, description="最大步数")
-    custom_obs: dict[str, Any] | None = Field(
-        default=None, description="自定义初始位置 {\"pos\": [x, y]}"
-    )
-    seed_id: str | None = Field(
-        default=None, description="指定会话种子ID（用于追踪）"
-    )
+    custom_obs: dict[str, Any] | None = Field(default=None, description='自定义初始位置 {"pos": [x, y]}')
+    seed_id: str | None = Field(default=None, description="指定会话种子ID（用于追踪）")
 
 
 class AgentResponse(BaseModel):
@@ -199,6 +192,7 @@ def _apply_security(req: Request) -> None:
         # For inline check, we use a simple in-memory counter as fallback
         client = req.client.host if req.client else "unknown"
         import time
+
         now = time.time()
         if not hasattr(_apply_security, "_window"):
             _apply_security._window = {}  # type: ignore[attr-defined]
@@ -208,10 +202,7 @@ def _apply_security(req: Request) -> None:
         win.setdefault(client, [])
         win[client] = [t for t in win[client] if t > cutoff]
         if len(win[client]) >= 60:
-            raise HTTPException(
-                status_code=429,
-                detail="Rate limit exceeded (60 req/min). Try again later."
-            )
+            raise HTTPException(status_code=429, detail="Rate limit exceeded (60 req/min). Try again later.")
         win[client].append(now)
 
 
@@ -246,10 +237,7 @@ async def health():
         t = s.get("seed_type", "未知")
         type_counts[t] = type_counts.get(t, 0) + 1
 
-    avg_imp = (
-        sum(s.get("imp", 0) for s in alaya.seeds) / len(alaya.seeds)
-        if alaya.seeds else 0.0
-    )
+    avg_imp = sum(s.get("imp", 0) for s in alaya.seeds) / len(alaya.seeds) if alaya.seeds else 0.0
 
     return HealthResponse(
         status="ok",
@@ -277,16 +265,10 @@ async def memory_stats():
         t = s.get("seed_type", "未知")
         type_counts[t] = type_counts.get(t, 0) + 1
 
-    avg_imp = (
-        sum(s.get("imp", 0) for s in alaya.seeds) / len(alaya.seeds)
-        if alaya.seeds else 0.0
-    )
+    avg_imp = sum(s.get("imp", 0) for s in alaya.seeds) / len(alaya.seeds) if alaya.seeds else 0.0
 
     last_ts = max((s.get("ts", 0) for s in alaya.seeds), default=0)
-    last_updated = (
-        datetime.fromtimestamp(last_ts).isoformat()
-        if last_ts else "never"
-    )
+    last_updated = datetime.fromtimestamp(last_ts).isoformat() if last_ts else "never"
 
     return MemoryStatsResponse(
         total_seeds=len(alaya.seeds),
@@ -319,17 +301,19 @@ async def list_seeds(
     # Strip heavy fields for API response
     stripped = []
     for s in candidates[-limit:]:
-        stripped.append({
-            "step": s.get("step"),
-            "pos": s.get("pos"),
-            "action": s.get("action"),
-            "reward": s.get("reward", s.get("rew")),
-            "seed_type": s.get("seed_type"),
-            "importance": round(s.get("imp", 0), 3),
-            "align": round(s.get("align", 0), 3),
-            "nature": s.get("tag", "依他起"),
-            "ts": s.get("ts"),
-        })
+        stripped.append(
+            {
+                "step": s.get("step"),
+                "pos": s.get("pos"),
+                "action": s.get("action"),
+                "reward": s.get("reward", s.get("rew")),
+                "seed_type": s.get("seed_type"),
+                "importance": round(s.get("imp", 0), 3),
+                "align": round(s.get("align", 0), 3),
+                "nature": s.get("tag", "依他起"),
+                "ts": s.get("ts"),
+            }
+        )
     return stripped
 
 
@@ -364,12 +348,10 @@ async def run_episode(req: AgentRequest, request: Request):
         if not _sanitizer or _sanitizer.sanitize(req.custom_obs):
             pass  # clean
         else:
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid custom_obs: contains unsafe values."
-            )
+            raise HTTPException(status_code=400, detail="Invalid custom_obs: contains unsafe values.")
 
     import time
+
     t0 = time.monotonic()
 
     session = _get_session()
@@ -441,10 +423,7 @@ async def get_wisdom_metrics():
     metrics = session.get("metrics", {})
 
     if not metrics:
-        return {
-            "status": "no_data",
-            "message": "Run /run_episode first to generate metrics."
-        }
+        return {"status": "no_data", "message": "Run /run_episode first to generate metrics."}
 
     return {
         "status": "ok",
@@ -458,6 +437,7 @@ async def main():
 
     try:
         asyncio.get_running_loop()
+
         # Already in a loop: run uvicorn in a separate thread
         def run_server():
             uvicorn.run(
