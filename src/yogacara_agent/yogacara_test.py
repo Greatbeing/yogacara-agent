@@ -5,6 +5,13 @@ from dataclasses import dataclass
 from typing import List, Dict, Tuple
 from collections import deque
 
+try:
+    from yogacara_agent.alignment_integration import AlignmentController
+    _HAS_ALIGNMENT = True
+except ImportError:
+    _HAS_ALIGNMENT = False
+    AlignmentController = None
+
 # Isolated RNG so LangGraph's internal random consumption doesn't affect
 # planner/manas behavior. Each instance gets its own private generator,
 # pre-seeded with 42 so behavior is deterministic across all execution paths
@@ -226,7 +233,7 @@ class ConsciousnessPlanner:
 
 
 class YogacaraAgent:
-    def __init__(self):
+    def __init__(self, alignment_enabled: bool = True):
         self.env = GridSimEnv()
         self.alaya = AlayaMemory()
         self.manas = ManasController()
@@ -236,6 +243,10 @@ class YogacaraAgent:
         self.pos_history = deque(maxlen=5)
         self._last_pos = None
         self._steps_stuck = 0
+        # ── Online alignment (DPO + EWC) ─────────────────────────────────────
+        self.ctrl = AlignmentController(enabled=alignment_enabled and _HAS_ALIGNMENT) if _HAS_ALIGNMENT else None
+        if self.ctrl:
+            print(f"\033[36m⚖️  OnlineAlignment 已启用 | mode={self.ctrl.status()['mode']}\033[0m")
 
     def run(self, max_steps=60):
         obs = self.env.reset()
@@ -252,6 +263,18 @@ class YogacaraAgent:
             final, passed, log = self.manas.filter(action, obs, unc, step, self.recent_rewards, self.pos_history)
             if not passed:
                 self.metrics["intercepts"] += 1
+            # ── Collect DPO preference pair ──────────────────────────────────
+            if self.ctrl and self.ctrl.enabled:
+                self.ctrl.collect_from_step(
+                    obs=obs,
+                    action_chosen=final,
+                    action_rejected=action if not passed else None,
+                    reward=rew,
+                    uncertainty=unc,
+                    importance=0.8,
+                    step=step,
+                    all_actions=scores,
+                )
             next_obs, rew, done = self.env.step(final)
             self.recent_rewards.append(rew)
             self.metrics["steps"] += 1
@@ -290,6 +313,12 @@ class YogacaraAgent:
             if (step + 1) % CONSOLIDATION_INTERVAL == 0:
                 print("\033[35m🔄 触发慢循环：阿赖耶熏习巩固\033[0m")
                 self.alaya.perfume_update()
+                # ── Trigger DPO + EWC update ──────────────────────────────────
+                if self.ctrl:
+                    result = self.ctrl.update_if_ready()
+                    status = result.get("status", "?")
+                    pairs = result.get("pairs_in_buffer", result.get("total_collected", 0))
+                    print(f"\033[35m⚖️  Alignment update: {status} | collected={pairs}\033[0m")
         self._summary()
 
     def _summary(self):
@@ -304,6 +333,10 @@ class YogacaraAgent:
         print(
             f"平均对齐分: {sum(self.metrics['aligns']) / len(self.metrics['aligns']):.3f}\n反思触发次数: {self.manas.reflections}"
         )
+        # ── Alignment summary ─────────────────────────────────────────────
+        if self.ctrl:
+            st = self.ctrl.status()
+            print(f"⚖️  Alignment | mode={st['mode']} | collected={st['total_collected']} | gpu={st['gpu_available']}")
 
 
 if __name__ == "__main__":
