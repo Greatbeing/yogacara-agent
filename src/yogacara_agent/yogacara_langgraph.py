@@ -123,34 +123,13 @@ class GridSimEnv:
         return {"grid_view": view, "pos": tuple(self.agent_pos), "step": self.step_count}
 
 
-class AlayaMemory:
+# 使用持久化阿赖耶识（文件存储 + 可选向量存储）
+from yogacara_agent.alaya_persistent import PersistentAlayaMemory
+
+class AlayaMemory(PersistentAlayaMemory):
+    """兼容旧接口的持久化阿赖耶识。"""
     def __init__(self):
-        self.seeds = []
-
-    def _encode(self, obs):
-        return [obs["pos"][0] / GRID_SIZE, obs["pos"][1] / GRID_SIZE] + [v / 2.0 for v in obs["grid_view"]]
-
-    def _dist(self, a, b):
-        return math.sqrt(sum((x - y) ** 2 for x, y in zip(a, b)))
-
-    def retrieve(self, obs, k=3):
-        if not self.seeds:
-            return []
-        emb = self._encode(obs)
-        scored = sorted([(self._dist(emb, s["emb"]), s) for s in self.seeds], key=lambda x: x[0])
-        return [s for _, s in scored[:k]]
-
-    def add(self, seed):
-        self.seeds.append(seed)
-
-    def perfume_update(self):
-        now = time.time()
-        for s in self.seeds:
-            dt = now - s["ts"]
-            if dt <= 0 or dt > 86400 * 365:
-                continue
-            s["imp"] *= math.exp(-0.12 * dt)
-            s["imp"] = min(1.0, s["imp"] + 0.3 * max(0, s["rew"]))
+        super().__init__(storage="file", path="memory/seeds.jsonl")
 
 
 class ManasController:
