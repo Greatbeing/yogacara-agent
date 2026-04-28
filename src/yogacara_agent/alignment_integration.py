@@ -104,7 +104,7 @@ class CPUAlignmentCollector:
         self.buffer.append(pair)
         self.total_collected += 1
         if len(self.buffer) > self.buffer_size:
-            self.buffer = self.buffer[-self.buffer_size:]
+            self.buffer = self.buffer[-self.buffer_size :]
 
     def update(self) -> dict[str, Any]:
         """返回累积统计，不执行训练。"""
@@ -285,7 +285,7 @@ class AlignmentController:
         chosen_desc = f"[ACT: {action_chosen}] → reward={reward:.2f}, unc={uncertainty:.2f}"
 
         # 确定 rejected
-        rejected = action_rejected
+        rejected: str | None = action_rejected
         if rejected is None and all_actions and random.random() < self.collect_rejected_prob:
             # 用随机低分动作作为对比
             low_actions = [a for a, s in all_actions.items() if a != action_chosen]
@@ -301,27 +301,17 @@ class AlignmentController:
         rejected_desc = f"[ACT: {rejected}]"
         weight = importance * (1.0 + reward)  # 高 reward × 高 align → 高权重
 
-        if isinstance(self._impl, CPUAlignmentCollector):
-            self._impl.collect(
-                prompt=prompt,
-                chosen=chosen_desc,
-                rejected=rejected_desc,
-                weight=weight,
-                step=step,
-                reward=reward,
-                unc=uncertainty,
-            )
-        else:
-            self._impl.collect(
-                prompt=prompt,
-                chosen=chosen_desc,
-                rejected=rejected_desc,
-                weight=weight,
-                step=step,
-                reward=reward,
-                unc=uncertainty,
-            )
-
+        # 调用对应的 collect 方法（isinstance 窄化在局部变量上生效）
+        impl = self._impl
+        impl.collect(
+            prompt=prompt,
+            chosen=chosen_desc,
+            rejected=rejected_desc,
+            weight=weight,
+            step=step,
+            reward=reward,
+            unc=uncertainty,
+        )
         self._total_collected += 1
         self._steps_since_update += 1
 
@@ -333,13 +323,14 @@ class AlignmentController:
         if self._impl is None:
             return {"status": "disabled"}
 
-        if isinstance(self._impl, CPUAlignmentCollector):
-            result = self._impl.update()
+        impl = self._impl
+        if isinstance(impl, CPUAlignmentCollector):
+            result = impl.update()
             self._steps_since_update = 0
             return result
 
         # GPU mode: check interval
-        result = self._impl.update_if_ready(steps_since_update=self._steps_since_update)
+        result = impl.update_if_ready(steps_since_update=self._steps_since_update)
         self._steps_since_update = 0
         return result if result else {"status": "waiting", "steps_since_update": 0}
 

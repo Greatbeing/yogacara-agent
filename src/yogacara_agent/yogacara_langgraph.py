@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import math
 import random
 import threading
 import time
@@ -124,10 +123,12 @@ class GridSimEnv:
 
 
 # 使用持久化阿赖耶识（文件存储 + 可选向量存储）
-from yogacara_agent.alaya_persistent import PersistentAlayaMemory
+from yogacara_agent.alaya_persistent import PersistentAlayaMemory  # noqa: E402
+
 
 class AlayaMemory(PersistentAlayaMemory):
     """兼容旧接口的持久化阿赖耶识。"""
+
     def __init__(self):
         super().__init__(storage="file", path="memory/seeds.jsonl")
 
@@ -157,7 +158,7 @@ class ManasController:
 # Module-level instances (legacy, single-process only)
 # WARNING: These are NOT safe for concurrent use across requests.
 # For production, use create_session() to get isolated instances.
-from yogacara_agent.yogacara_test import ConsciousnessPlanner as _SharedPlanner, _rnd_choice
+from yogacara_agent.yogacara_test import ConsciousnessPlanner as _SharedPlanner, _rnd_choice  # noqa: E402
 
 _lock = threading.Lock()
 env = GridSimEnv()
@@ -518,6 +519,6 @@ async def main():
 if __name__ == "__main__":
     import sys
 
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
     asyncio.run(main())
