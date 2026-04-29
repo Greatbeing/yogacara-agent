@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CompressionMetrics:
     """压缩质量指标快照。"""
+
     # 种子库状态
     seed_count: int
     total_tokens: int  # 估算
@@ -34,20 +35,20 @@ class CompressionMetrics:
     # 质量分布
     avg_align: float
     high_quality_ratio: float  # align > 0.7 的种子占比
-    low_quality_ratio: float   # align < 0.3 的种子占比
+    low_quality_ratio: float  # align < 0.3 的种子占比
 
     # 压缩率
-    compression_ratio: float   # (初始 - 当前) / 初始（需外部注入初始值）
-    seed_decay_rate: float     # imp 衰减率（时间维度压缩）
+    compression_ratio: float  # (初始 - 当前) / 初始（需外部注入初始值）
+    seed_decay_rate: float  # imp 衰减率（时间维度压缩）
 
     # 四智指标（从 ego_monitor 注入）
-    mirror_ratio: float        # 大圆镜智
-    ego_score: float           # 平等性智（我执强度）
+    mirror_ratio: float  # 大圆镜智
+    ego_score: float  # 平等性智（我执强度）
     misapprehension_ratio: float  # 妙观察智（遍计比例）
-    execution_rate: float      # 成所作智
+    execution_rate: float  # 成所作智
 
     # 综合评分
-    cqs: float                 # Compression Quality Score
+    cqs: float  # Compression Quality Score
 
     def summary(self) -> dict[str, Any]:
         return {
@@ -140,9 +141,7 @@ class CompressionMetricsCalculator:
         seed_decay_rate = self._compute_decay_rate(seeds)
 
         # 四智综合评分
-        wisdom_score = self._compute_wisdom_score(
-            mirror_ratio, ego_score, misapprehension_ratio, execution_rate
-        )
+        wisdom_score = self._compute_wisdom_score(mirror_ratio, ego_score, misapprehension_ratio, execution_rate)
 
         # CQS = 质量 * 效率 / 规模惩罚
         # log(seed_count+1) 控制规模：种子越多，惩罚越大
@@ -191,12 +190,7 @@ class CompressionMetricsCalculator:
         # 妙观察智归一化（本身就是比例，直接用）
         misapp_score_norm = max(0.0, 1.0 - misapp)
 
-        score = (
-            mirror * 0.40 +
-            ego_score_norm * 0.30 +
-            execution * 0.20 +
-            misapp_score_norm * 0.10
-        )
+        score = mirror * 0.40 + ego_score_norm * 0.30 + execution * 0.20 + misapp_score_norm * 0.10
         return score
 
     @staticmethod
@@ -214,5 +208,5 @@ class CompressionMetricsCalculator:
         if mean == 0:
             return 0.0
         variance = sum((x - mean) ** 2 for x in imps) / len(imps)
-        std = variance ** 0.5
+        std = variance**0.5
         return std / mean  # CV

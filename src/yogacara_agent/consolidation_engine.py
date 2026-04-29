@@ -23,9 +23,9 @@ logger = logging.getLogger(__name__)
 
 # ── 配置常量 ──────────────────────────────────────────────────────────
 KEEP_PLUS_THRESHOLD = 0.70  # 高质量：align >= 0.70，直接保留
-KEEP_THRESHOLD = 0.30       # 中质量：align >= 0.30，保留
-PRUNE_THRESHOLD = 0.20      # 低质量：align < 0.20，删除
-MERGE_SIMILARITY = 0.90     # 超过此相似度 → 合并
+KEEP_THRESHOLD = 0.30  # 中质量：align >= 0.30，保留
+PRUNE_THRESHOLD = 0.20  # 低质量：align < 0.20，删除
+MERGE_SIMILARITY = 0.90  # 超过此相似度 → 合并
 
 # 估算每个种子的 token 数
 SEED_TOKEN_ESTIMATE = 200
@@ -34,6 +34,7 @@ SEED_TOKEN_ESTIMATE = 200
 @dataclass
 class ConsolidationReport:
     """整理报告。"""
+
     total_before: int
     total_after: int
     pruned_count: int
@@ -88,8 +89,13 @@ class ConsolidationEngine:
         total_before = len(seeds)
         if not seeds:
             return ConsolidationReport(
-                total_before=0, total_after=0, pruned_count=0, merged_count=0,
-                kept_plus_count=0, kept_count=0, estimated_tokens_saved=0,
+                total_before=0,
+                total_after=0,
+                pruned_count=0,
+                merged_count=0,
+                kept_plus_count=0,
+                kept_count=0,
+                estimated_tokens_saved=0,
                 quality_distribution={"keep_plus": 0, "keep": 0, "prune": 0},
                 message="无种子，跳过整理",
             )
@@ -151,9 +157,7 @@ class ConsolidationEngine:
         return report
 
     # ── 内部方法 ────────────────────────────────────────────────────────
-    def _categorize(
-        self, seeds: list[dict]
-    ) -> tuple[list[dict], list[dict], list[dict]]:
+    def _categorize(self, seeds: list[dict]) -> tuple[list[dict], list[dict], list[dict]]:
         """按 align 分类：keep_plus / keep / prune。"""
         keep_plus: list[dict] = []
         keep: list[dict] = []

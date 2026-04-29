@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 # ── 配置常量 ──────────────────────────────────────────────────────────
-VIPAKA_RATE = float(getattr(__import__('__main__'), 'VIPAKA_RATE', 0.2))
+VIPAKA_RATE = float(getattr(__import__("__main__"), "VIPAKA_RATE", 0.2))
 ALIGN_MIN = 0.05
 ALIGN_MAX = 0.95
 UNC_PENALTY_COEFF = 0.03  # 每 1% unc 扣 0.03
@@ -37,6 +37,7 @@ UNC_PENALTY_COEFF = 0.03  # 每 1% unc 扣 0.03
 @dataclass
 class VipakaResult:
     """单次熏习结果。"""
+
     step: int
     vipaka: float
     reward: float
@@ -92,14 +93,18 @@ class VipakaEngine:
         if obs is not None:
             candidates = self.alaya.retrieve(obs, k=5, seed_type="业种")
         else:
-            candidates = [s for s in self.alaya.seeds
-                          if s.get("seed_type") == "业种" and action in s.get("tag", "")]
+            candidates = [s for s in self.alaya.seeds if s.get("seed_type") == "业种" and action in s.get("tag", "")]
 
         if not candidates:
             details.append(f"[Vipaka] 无相关种子，跳过（action={action}, reward={reward}）")
             return VipakaResult(
-                step=step, vipaka=vipaka, reward=reward, unc=unc,
-                seeds_updated=0, avg_align_delta=0.0, details=details,
+                step=step,
+                vipaka=vipaka,
+                reward=reward,
+                unc=unc,
+                seeds_updated=0,
+                avg_align_delta=0.0,
+                details=details,
             )
 
         # 更新每个相关种子
@@ -113,7 +118,7 @@ class VipakaEngine:
             seed["align"] = new_align
             seed["vipaka_last"] = vipaka
             seed["vipaka_step"] = step
-            total_delta += (new_align - old_align)
+            total_delta += new_align - old_align
             updated_seeds.append(seed)
 
         # 批量写回（触发文件持久化）
@@ -124,15 +129,17 @@ class VipakaEngine:
         avg_delta = total_delta / len(updated_seeds) if updated_seeds else 0.0
 
         details.append(
-            f"[Vipaka] vipaka={vipaka:+.3f} → "
-            f"更新{len(updated_seeds)}个种子，avg_align_delta={avg_delta:+.3f}"
+            f"[Vipaka] vipaka={vipaka:+.3f} → 更新{len(updated_seeds)}个种子，avg_align_delta={avg_delta:+.3f}"
         )
 
         if verbose:
             logger.info(details[0])
 
         return VipakaResult(
-            step=step, vipaka=vipaka, reward=reward, unc=unc,
+            step=step,
+            vipaka=vipaka,
+            reward=reward,
+            unc=unc,
             seeds_updated=len(updated_seeds),
             avg_align_delta=avg_delta,
             details=details,
