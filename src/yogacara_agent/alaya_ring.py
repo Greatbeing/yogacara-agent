@@ -37,6 +37,7 @@ DEFAULT_CONSOLIDATION_INTERVAL = 50  # 每 N 步整理一次
 @dataclass
 class AlayaRingConfig:
     """阿赖耶识环配置。"""
+
     consolidation_interval: int = DEFAULT_CONSOLIDATION_INTERVAL
     initial_context_tokens: int = 50_000
     vipaka_rate: float = 0.2
@@ -69,9 +70,7 @@ class AlayaRing:
         # 初始化组件
         self.vipaka = VipakaEngine(alaya, rate=self.cfg.vipaka_rate)
         self.consolidator = ConsolidationEngine()
-        self.metrics_calc = CompressionMetricsCalculator(
-            initial_context_tokens=self.cfg.initial_context_tokens
-        )
+        self.metrics_calc = CompressionMetricsCalculator(initial_context_tokens=self.cfg.initial_context_tokens)
 
         # 状态
         self._step_count = 0
@@ -113,9 +112,7 @@ class AlayaRing:
         # 新种子由外部 planner 决策后通过 alaya.add() 入库
 
         # ── 3. 定时整理（每 N 步）────────────────────────────────────
-        needs_consolidation = (
-            step_num - self._last_consolidation_step >= self.cfg.consolidation_interval
-        )
+        needs_consolidation = step_num - self._last_consolidation_step >= self.cfg.consolidation_interval
 
         consolidation_result = None
         if needs_consolidation:

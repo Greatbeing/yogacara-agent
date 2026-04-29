@@ -139,10 +139,7 @@ class PersistentAlayaMemory:
         """
         if not tags or not self.seeds:
             return []
-        matched = [
-            s for s in self.seeds
-            if any(t in s.get("tag", "") for t in tags)
-        ]
+        matched = [s for s in self.seeds if any(t in s.get("tag", "") for t in tags)]
         # 按 importance 降序
         matched.sort(key=lambda s: s.get("imp", 0), reverse=True)
         return matched[:k]
