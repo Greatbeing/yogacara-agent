@@ -118,6 +118,35 @@ class PersistentAlayaMemory:
         if self.storage in ("vector", "hybrid") and self._chroma_collection:
             self._add_to_chroma(seed)
 
+    def batch_update(self, seeds: list[dict]) -> None:
+        """
+        批量更新多个种子（用于 VipakaEngine 的 align 更新）。
+
+        内存中已修改，直接触发文件重写持久化。
+        """
+        if not seeds:
+            return
+        if self.storage in ("file", "hybrid"):
+            self._save_all_to_file()
+
+    def retrieve_by_tags(self, tags: list[str], k: int = 5) -> list[dict]:
+        """
+        按标签检索种子（模糊匹配 tag 字段）。
+
+        Args:
+            tags: 标签列表，如 ["名言_遍计", "业_正反馈"]
+            k: 返回上限
+        """
+        if not tags or not self.seeds:
+            return []
+        matched = [
+            s for s in self.seeds
+            if any(t in s.get("tag", "") for t in tags)
+        ]
+        # 按 importance 降序
+        matched.sort(key=lambda s: s.get("imp", 0), reverse=True)
+        return matched[:k]
+
     def perfume_update(self) -> None:
         """熏习更新：衰减旧种子重要性，提升高奖励种子。"""
         now = time.time()
