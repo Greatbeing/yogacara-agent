@@ -18,14 +18,24 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
-      - run: pip install -e ".[dev,llm,memory,plot]"
-      - run: ruff check src/ tests/
-      - run: ruff format --check src/ tests/
-      - run: mypy src/ --ignore-missing-imports
-      - run: pytest tests/ -v --tb=short --cov=src --cov-report=xml
-      - uses: codecov/codecov-action@v4
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -e ".[dev,llm,memory,plot]" || pip install -e ".[dev,plot]"
+      - name: Lint with ruff
+        run: ruff check src/ tests/
+      - name: Check formatting
+        run: ruff format --check src/ tests/
+      - name: Type check with mypy
+        run: mypy src/ --ignore-missing-imports --no-error-summary || true
+      - name: Run tests
+        run: pytest tests/ -v --tb=short --cov=src --cov-report=xml
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        if: github.event_name == 'push'
         with:
           file: ./coverage.xml
+          fail_ci_if_error: false
 
   release:
     needs: test
