@@ -15,7 +15,8 @@ logger = logging.getLogger(__name__)
 GRID_SIZE = 10
 ACTIONS = ["UP", "DOWN", "LEFT", "RIGHT", "STAY"]
 ACTION_TO_IDX = {"UP": 1, "DOWN": 7, "LEFT": 3, "RIGHT": 5, "STAY": 4}
-random.seed(42)
+# 模块私有随机源：保持 demo 可复现，同时避免污染宿主进程的全局 random 状态
+_rng = random.Random(42)
 
 
 @tool
@@ -27,7 +28,7 @@ def query_knowledge_base(query: str) -> str:
 @tool
 def call_external_api(endpoint: str, payload: dict) -> dict:
     """Call an external API endpoint with the given payload."""
-    return {"status": "success", "data": {"latency_ms": random.randint(20, 150)}}
+    return {"status": "success", "data": {"latency_ms": _rng.randint(20, 150)}}
 
 
 @tool
@@ -60,6 +61,7 @@ class YogacaraState(TypedDict):
     reasoning: str
     steps_since_resource: int  # 探索力重置计数器
     steps_at_same_pos: int  # 连续停留计数器（正确实现is_stuck检测）
+    step_limit: int  # 单次 episode 步数上限（API max_steps 注入）
 
 
 class _IntrospectionRecordData(TypedDict):
@@ -202,16 +204,18 @@ def _get_ego_monitor():
 
 
 def create_session() -> dict:
-    """Create an isolated session with fresh env/memory/manas instances."""
-    from yogacara_agent.ego_monitor import EgoMonitor
-    from yogacara_agent.introspection import IntrospectionLogger
+    """返回共享的应用 session（env/memory/manas 等单例引用）。
 
+    注意：图节点绑定的是上面的模块级单例，因此 session 必须返回同一批
+    实例——否则 API 层会拿到一套图根本不用的"影子"对象（历史 bug）。
+    单进程内共享；多请求并发需要调用方自行串行化（见 api_server 的锁）。
+    """
     return {
-        "env": GridSimEnv(),
-        "alaya": AlayaMemory(),
-        "manas": ManasController(),
-        "introspection": IntrospectionLogger(),
-        "ego_monitor": EgoMonitor(),
+        "env": env,
+        "alaya": alaya,
+        "manas": manas,
+        "introspection": _get_introspection_logger(),
+        "ego_monitor": _get_ego_monitor(),
     }
 
 
@@ -338,6 +342,7 @@ async def node_execute(state: YogacaraState) -> YogacaraState:
         tool_fn = TOOL_MAP[tc["tool"]]
         res = tool_fn.invoke(tc["input"]) if isinstance(tc["input"], dict) else tool_fn.invoke({"query": tc["input"]})
         print(f"\033[90m[工具] {tc['tool']} → {res}\033[0m")
+    prev_pos = state["obs"].get("pos")
     next_obs, rew, done = env.step(state["action"])
     state["reward"] = rew
     state["done"] = done
@@ -345,16 +350,21 @@ async def node_execute(state: YogacaraState) -> YogacaraState:
     state["step"] += 1
     state["recent_rewards"].append(rew)
     state["pos_history"].append(next_obs["pos"])
-    # Update steps_at_same_pos counter (correct is_stuck detection)
-    if next_obs["pos"] == state["obs"].get("pos"):
-        state["steps_at_same_pos"] = state.get("steps_at_same_pos", 0) + 1
-    else:
+    # Update steps_at_same_pos counter (与 demo 版一致：
+    # 移动了则清零；STAY 或位置未变则递增)
+    if state["action"] != "STAY" and prev_pos != next_obs["pos"]:
         state["steps_at_same_pos"] = 0
-    # Sync exploration counter: demo uses counter-as-trigger (never increments
-    # between resources, resets to 0 when resource found). Match that behavior.
+    else:
+        state["steps_at_same_pos"] = state.get("steps_at_same_pos", 0) + 1
+    # Exploration counter: 未获得资源时递增，获得资源时清零
     if rew >= 4.0:
         state["steps_since_resource"] = 0
         planner._steps_without_resource = 0  # sync with shared planner
+    else:
+        state["steps_since_resource"] = state.get("steps_since_resource", 0) + 1
+    # 尊重调用方设置的步数上限（API 的 max_steps）
+    if not state["done"] and state["step"] >= state.get("step_limit", 60):
+        state["done"] = True
     return state
 
 
@@ -413,6 +423,7 @@ async def node_store(state: YogacaraState) -> YogacaraState:
             "align": classification.align,
             "unc": state["unc"],
             "tag": seed_tag,
+            "seed_type": classification.seed_type,
         }
     )
     return state
@@ -458,7 +469,7 @@ async def main():
     # 初始化内省系统（lazy init 避免循环导入）
     _get_introspection_logger()
     graph = build_graph()
-    asyncio.create_task(slow_loop(alaya, interval=10))
+    _slow_loop_task = asyncio.create_task(slow_loop(alaya, interval=10))
     init_state = {
         "obs": env.reset(),
         "action": "",
@@ -478,6 +489,7 @@ async def main():
         "reasoning": "",
         "steps_since_resource": 0,
         "steps_at_same_pos": 0,
+        "step_limit": 60,
     }
     final_state = await graph.ainvoke(init_state)
     total_steps = final_state["step"]

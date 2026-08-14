@@ -123,6 +123,9 @@ class AlayaRing:
                 verbose=self.cfg.verbose,
             )
             self._last_consolidation_step = step_num
+            # 整理删除了种子，需要持久化到磁盘，否则重启后"复活"
+            if consolidation_result.pruned_count > 0 or consolidation_result.merged_count > 0:
+                self.alaya.batch_update(self.alaya.seeds)
 
         # ── 4. 计算压缩指标（每步）──────────────────────────────────
         four_wisdom = self._get_four_wisdom()
@@ -159,6 +162,9 @@ class AlayaRing:
             dry_run=False,
             verbose=False,
         )
+        # 持久化整理结果
+        if final_consolidation.pruned_count > 0 or final_consolidation.merged_count > 0:
+            self.alaya.batch_update(self.alaya.seeds)
 
         # 最终指标
         four_wisdom = self._get_four_wisdom()

@@ -20,17 +20,11 @@ class LLMPlanner:
         self.temperature = config.get("temperature", 0.3)
         self.fallback_heuristic = config.get("use_fallback", True)
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=0.5, max=2))
     def plan(self, obs: dict, seeds: list[dict]) -> tuple[str, float, str, list[dict]]:
         prompt = self._build_prompt(obs, seeds)
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=self.temperature,
-                response_format={"type": "json_object"},
-            )
-            parsed = json.loads(response.choices[0].message.content or "{}")
+            content = self._call_llm(prompt)
+            parsed = json.loads(content)
             action = parsed["action"].upper()
             confidence = float(parsed.get("confidence", 0.5))
             uncertainty = max(0.0, min(1.0, 1.0 - confidence))
@@ -42,6 +36,17 @@ class LLMPlanner:
         except Exception as e:
             logger.warning(f"LLM规划失败: {e}，启用启发式降级")
             return self._heuristic_fallback(obs, seeds) if self.fallback_heuristic else ("STAY", 1.0, "失败", [])
+
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=0.5, max=2))
+    def _call_llm(self, prompt: str) -> str:
+        """调用 LLM；瞬时错误（网络/超时）通过异常传播触发 tenacity 重试。"""
+        response = self.client.chat.completions.create(
+            model=self.model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=self.temperature,
+            response_format={"type": "json_object"},
+        )
+        return response.choices[0].message.content or "{}"
 
     def _build_prompt(self, obs: dict, seeds: list[dict]) -> str:
         seed_ctx = "\n".join([f"- {s['act']}: R={s['rew']:.1f} 重要性={s['imp']:.2f}" for s in seeds[:5]])

@@ -31,6 +31,7 @@ OnlineAlignmentManager 与 YogacaraAgent 的集成层。
 """
 
 import logging
+import math
 import random
 import time
 from dataclasses import dataclass, field
@@ -162,7 +163,7 @@ class GPUAlignmentManager:
         self.gpu_available = True
 
     def _init_manager(self, model_name, lora_rank, buffer_size, ewc_lambda):
-        from online_alignment import OnlineAlignmentManager
+        from yogacara_agent.online_alignment import OnlineAlignmentManager
 
         return OnlineAlignmentManager(
             model_name=model_name,
@@ -299,7 +300,9 @@ class AlignmentController:
             return
 
         rejected_desc = f"[ACT: {rejected}]"
-        weight = importance * (1.0 + reward)  # 高 reward × 高 align → 高权重
+        # 用 sigmoid 避免负权重：reward=-3 时 weight 仍为正值，
+        # 且高奖励样本获得更高权重（符合 DPO 采样直觉）
+        weight = importance / (1.0 + math.exp(-reward))
 
         # 调用对应的 collect 方法（isinstance 窄化在局部变量上生效）
         impl = self._impl
@@ -331,8 +334,9 @@ class AlignmentController:
 
         # GPU mode: check interval
         result = impl.update_if_ready(steps_since_update=self._steps_since_update)
-        self._steps_since_update = 0
-        return result if result else {"status": "waiting", "steps_since_update": 0}
+        if result is not None:
+            self._steps_since_update = 0
+        return result if result else {"status": "waiting", "steps_since_update": self._steps_since_update}
 
     @property
     def total_collected(self) -> int:

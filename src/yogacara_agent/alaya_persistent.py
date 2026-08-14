@@ -13,10 +13,15 @@
 """
 
 import json  # noqa: F401
+import logging
 import math  # noqa: F401
 import os
+import threading
 import time
+from contextlib import suppress
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 # 可选的向量存储
 try:
@@ -47,6 +52,7 @@ class PersistentAlayaMemory:
         self.storage = storage
         self.path = path
         self.seeds: list[dict] = []
+        self._lock = threading.RLock()
         self._chroma_client: Any = None
         self._chroma_collection: Any = None
         # 初始化存储
@@ -108,15 +114,16 @@ class PersistentAlayaMemory:
         seed.setdefault("tag", "依他起")
         seed.setdefault("seed_type", "业种")  # 默认业种
 
-        self.seeds.append(seed)
+        with self._lock:
+            self.seeds.append(seed)
 
-        # 文件持久化
-        if self.storage in ("file", "hybrid"):
-            self._append_to_file(seed)
+            # 文件持久化
+            if self.storage in ("file", "hybrid"):
+                self._append_to_file(seed)
 
-        # 向量存储
-        if self.storage in ("vector", "hybrid") and self._chroma_collection:
-            self._add_to_chroma(seed)
+            # 向量存储
+            if self.storage in ("vector", "hybrid") and self._chroma_collection:
+                self._add_to_chroma(seed)
 
     def batch_update(self, seeds: list[dict]) -> None:
         """
@@ -145,21 +152,26 @@ class PersistentAlayaMemory:
         return matched[:k]
 
     def perfume_update(self) -> None:
-        """熏习更新：衰减旧种子重要性，提升高奖励种子。"""
+        """熏习更新：衰减旧种子重要性，提升高奖励种子。
+
+        衰减按天计（半衰期约 5.8 天），与下方的 dt 守卫（>1 年跳过）量纲一致。
+        """
         now = time.time()
         modified = False
 
-        for s in self.seeds:
-            dt = now - s.get("ts", now)
-            if dt <= 0 or dt > 86400 * 365:
-                continue
-            s["imp"] *= math.exp(-0.12 * dt)
-            s["imp"] = min(1.0, s["imp"] + 0.3 * max(0, s.get("rew", 0)))
-            modified = True
+        with self._lock:
+            for s in self.seeds:
+                dt = now - s.get("ts", now)
+                if dt <= 0 or dt > 86400 * 365:
+                    continue
+                dt_days = dt / 86400
+                s["imp"] *= math.exp(-0.12 * dt_days)
+                s["imp"] = min(1.0, s["imp"] + 0.3 * max(0, s.get("rew", 0)))
+                modified = True
 
-        # 如果修改了，重写文件
-        if modified and self.storage in ("file", "hybrid"):
-            self._save_all_to_file()
+            # 如果修改了，重写文件
+            if modified and self.storage in ("file", "hybrid"):
+                self._save_all_to_file()
 
     def get_stats(self) -> dict[str, Any]:
         """获取记忆统计。"""
@@ -196,42 +208,49 @@ class PersistentAlayaMemory:
                         self.seeds.append(seed)
                     except json.JSONDecodeError:
                         continue
-            print(f"[Alaya] 从 {self.path} 加载了 {len(self.seeds)} 个种子")
-        except Exception as e:
-            print(f"[Alaya] 加载失败: {e}")
+            logger.info(f"[Alaya] 从 {self.path} 加载了 {len(self.seeds)} 个种子")
+        except Exception:
+            logger.exception(f"[Alaya] 加载失败: {self.path}")
 
     def _append_to_file(self, seed: dict) -> None:
         """追加单个种子到文件。"""
         try:
-            with open(self.path, "a", encoding="utf-8") as f:
-                # 将 emb 转为可序列化格式
-                seed_copy = dict(seed)
-                if isinstance(seed_copy.get("emb"), list):
-                    seed_copy["emb"] = json.dumps(seed_copy["emb"])
-                f.write(json.dumps(seed_copy, ensure_ascii=False) + "\n")
-        except Exception as e:
-            print(f"[Alaya] 保存失败: {e}")
-
-    def _save_all_to_file(self) -> None:
-        """全量保存（用于 perfume_update 后）。"""
-        try:
-            with open(self.path, "w", encoding="utf-8") as f:
-                for seed in self.seeds:
+            with self._lock:
+                with open(self.path, "a", encoding="utf-8") as f:
+                    # 将 emb 转为可序列化格式
                     seed_copy = dict(seed)
                     if isinstance(seed_copy.get("emb"), list):
                         seed_copy["emb"] = json.dumps(seed_copy["emb"])
                     f.write(json.dumps(seed_copy, ensure_ascii=False) + "\n")
-        except Exception as e:
-            print(f"[Alaya] 全量保存失败: {e}")
+        except Exception:
+            logger.exception("[Alaya] 保存失败")
+
+    def _save_all_to_file(self) -> None:
+        """全量保存（用于 perfume_update 后）。写临时文件后原子替换，避免中途崩溃损坏记忆库。"""
+        tmp_path = f"{self.path}.tmp"
+        try:
+            with self._lock:
+                with open(tmp_path, "w", encoding="utf-8") as f:
+                    for seed in self.seeds:
+                        seed_copy = dict(seed)
+                        if isinstance(seed_copy.get("emb"), list):
+                            seed_copy["emb"] = json.dumps(seed_copy["emb"])
+                        f.write(json.dumps(seed_copy, ensure_ascii=False) + "\n")
+                os.replace(tmp_path, self.path)
+        except Exception:
+            logger.exception("[Alaya] 全量保存失败")
+            with suppress(FileNotFoundError):
+                os.remove(tmp_path)
 
     # ── 向量存储实现 ────────────────────────────────────────────────────
     def _init_chroma(self) -> None:
-        """初始化 Chroma 向量数据库。"""
-        self._chroma_client = chromadb.PersistentClient(path=self.path)  # type: ignore[union-attr]
+        """初始化 Chroma 向量数据库。hybrid 模式下使用独立目录，避免与 JSONL 文件路径冲突。"""
+        chroma_path = self.path if self.storage == "vector" else f"{self.path}.chroma"
+        self._chroma_client = chromadb.PersistentClient(path=chroma_path)  # type: ignore[union-attr]
         self._chroma_collection = self._chroma_client.get_or_create_collection(  # type: ignore[union-attr]
             name="alaya_seeds", metadata={"hnsw:space": "l2"}
         )  # type: ignore[union-attr]
-        print(f"[Alaya] Chroma 向量存储已初始化: {self.path}")
+        logger.info(f"[Alaya] Chroma 向量存储已初始化: {chroma_path}")
 
     def _add_to_chroma(self, seed: dict) -> None:
         """添加种子到 Chroma。"""

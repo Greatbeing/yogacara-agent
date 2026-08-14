@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 # ── 配置常量 ──────────────────────────────────────────────────────────
-VIPAKA_RATE = float(getattr(__import__("__main__"), "VIPAKA_RATE", 0.2))
+DEFAULT_VIPAKA_RATE = 0.2
 ALIGN_MIN = 0.05
 ALIGN_MAX = 0.95
 UNC_PENALTY_COEFF = 0.03  # 每 1% unc 扣 0.03
@@ -54,7 +54,7 @@ class VipakaEngine:
     在每步执行后调用 process_outcome()，基于执行效果更新相关种子的 align 值。
     """
 
-    def __init__(self, alaya: PersistentAlayaMemory, rate: float = VIPAKA_RATE):
+    def __init__(self, alaya: PersistentAlayaMemory, rate: float = DEFAULT_VIPAKA_RATE):
         """
         Args:
             alaya: Alaya 种子库实例
@@ -89,11 +89,13 @@ class VipakaEngine:
         vipaka = self._compute_vipaka(reward, unc)
         details = []
 
-        # 找相关种子：同类型 + 位置相近（如果有 obs）
+        # 找相关种子：按位置邻近检索，再按当前动作过滤，
+        # 避免把 UP 的果报误扣到同一位置附近 RIGHT 的旧种子上。
         if obs is not None:
-            candidates = self.alaya.retrieve(obs, k=5, seed_type="业种")
+            candidates = self.alaya.retrieve(obs, k=10, seed_type="业种")
+            candidates = [s for s in candidates if s.get("act") == action]
         else:
-            candidates = [s for s in self.alaya.seeds if s.get("seed_type") == "业种" and action in s.get("tag", "")]
+            candidates = [s for s in self.alaya.seeds if s.get("seed_type") == "业种" and s.get("act") == action]
 
         if not candidates:
             details.append(f"[Vipaka] 无相关种子，跳过（action={action}, reward={reward}）")
@@ -123,7 +125,6 @@ class VipakaEngine:
 
         # 批量写回（触发文件持久化）
         if updated_seeds:
-            ids = [f"step_{s.get('vipaka_step', step)}" for s in updated_seeds]
             self.alaya.batch_update(updated_seeds)
 
         avg_delta = total_delta / len(updated_seeds) if updated_seeds else 0.0

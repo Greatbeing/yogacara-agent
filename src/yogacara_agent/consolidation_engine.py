@@ -105,9 +105,13 @@ class ConsolidationEngine:
         keep_plus, keep, prune = categorized
 
         # ── Step 2: 合并高度相似的种子 ───────────────────────────────
+        keep_plus_original = list(keep_plus)  # 保存原始引用，用于追踪被合并的种子
         merged_from_keep_plus = self._merge_similar(keep_plus, seeds)
         merged_count = len(keep_plus) - len(merged_from_keep_plus)
         keep_plus = merged_from_keep_plus
+
+        # 记录被合并掉的种子 id，以便从 seeds 中移除
+        merged_away_ids = {id(s) for s in keep_plus_original if id(s) not in {id(s) for s in keep_plus}} if not dry_run else set()
 
         # ── Step 3: 决定删除 ──────────────────────────────────────────
         # 规则：只删除 align < PRUNE_THRESHOLD 的种子
@@ -116,9 +120,13 @@ class ConsolidationEngine:
         borderline = [s for s in prune if self.prune_thresh <= s.get("align", 0.5) < self.keep_thresh]
 
         if not dry_run:
-            # 实际删除
-            seeds_to_remove = {id(s) for s in prune_final}
+            # 合并后的种子已包含在 keep_plus 中，需把被合并掉的旧种子从
+            # seeds 中移除，同时移除 prune 列表
+            original_keep_plus_ids = {id(s) for s in keep_plus_original}
+            seeds_to_remove = {id(s) for s in prune_final} | merged_away_ids
             seeds[:] = [s for s in seeds if id(s) not in seeds_to_remove]
+            # 合并产生的是新 dict 对象，不在原始的 seeds 中，需要加回
+            seeds.extend(s for s in keep_plus if id(s) not in original_keep_plus_ids)
 
         # ── Step 4: 生成报告 ──────────────────────────────────────────
         total_after = len(seeds)

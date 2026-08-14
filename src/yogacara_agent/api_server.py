@@ -14,7 +14,6 @@ import asyncio
 import logging
 import os
 import sys
-import threading
 from contextlib import asynccontextmanager, suppress
 from datetime import datetime
 from typing import Any, TYPE_CHECKING
@@ -24,19 +23,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 # ── Security imports ─────────────────────────────────────────────────────────
-sys.path.append(os.path.dirname(__file__))
 try:
-    from security.input_sanitizer import InputSanitizer
-    from security.tool_sandbox import ToolSandbox
+    from yogacara_agent.security.input_sanitizer import InputSanitizer
+    from yogacara_agent.security.tool_sandbox import ToolSandbox
 
     # rate_limiter.py exports a slowapi Limiter instance + setup_rate_limiting()
-    from security.rate_limiter import limiter as _slowapi_limiter
+    from yogacara_agent.security.rate_limiter import limiter as _slowapi_limiter, setup_rate_limiting
 
     _HAS_SECURITY = True
 except ImportError:
     _HAS_SECURITY = False
 
-from yogacara_langgraph import build_graph, create_session, slow_loop
+from yogacara_agent.yogacara_langgraph import GRID_SIZE, build_graph, create_session, slow_loop
 
 if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph
@@ -118,13 +116,22 @@ app = FastAPI(
 )
 
 # ── CORS ──────────────────────────────────────────────────────────────────────
+# 通配符 origin 与 credentials 组合违反 CORS 规范；如需凭证请通过环境变量
+# YOGACARA_ALLOWED_ORIGINS 显式指定白名单（逗号分隔）。
+_allowed_origins = [o.strip() for o in os.environ.get("YOGACARA_ALLOWED_ORIGINS", "*").split(",")]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_allowed_origins,
+    allow_credentials="*" not in _allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+if _HAS_SECURITY:
+    setup_rate_limiting(app)  # 注册 slowapi 限流器与 429 异常处理器
+
+# 写端点串行化：env/alaya 是进程级共享单例，并发 episode 会互相踩踏
+_episode_lock = asyncio.Lock()
 
 
 # ── Request/Response models ──────────────────────────────────────────────────
@@ -186,10 +193,12 @@ def _uptime() -> str:
 
 # ── Security helpers ─────────────────────────────────────────────────────────
 def _apply_security(req: Request) -> None:
-    """Apply rate-limiting via slowapi; raises HTTPException on failure."""
+    """简易滑动窗口限流（60 req/min per client）；超出抛 429。
+
+    注意：部署在反向代理后所有请求共享代理 IP，应配置可信的
+    X-Forwarded-For 解析或改用共享存储（Redis）限流。
+    """
     if _HAS_SECURITY and _slowapi_limiter:
-        # Let slowapi handle it via the limiter applied as a dependency
-        # For inline check, we use a simple in-memory counter as fallback
         client = req.client.host if req.client else "unknown"
         import time
 
@@ -204,6 +213,11 @@ def _apply_security(req: Request) -> None:
         if len(win[client]) >= 60:
             raise HTTPException(status_code=429, detail="Rate limit exceeded (60 req/min). Try again later.")
         win[client].append(now)
+        # 清理过期客户端，避免按 IP 累积导致内存泄漏
+        if len(win) > 10000:
+            stale = [c for c, ts in win.items() if not ts or ts[-1] <= cutoff]
+            for c in stale:
+                del win[c]
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -225,8 +239,6 @@ async def health():
 
     返回 Alaya 记忆系统状态、末那识拦截次数、慢循环运行状态。
     """
-    _apply_security(Request.__new__(Request))  # dummy for rate limiter
-
     session = _get_session()
     alaya = session["alaya"]
     manas = session["manas"]
@@ -283,7 +295,7 @@ async def memory_stats():
 @app.get("/memory/seeds", response_model=list[dict], tags=["memory"])
 async def list_seeds(
     seed_type: str | None = None,
-    limit: int = 20,
+    limit: int = Field(default=20, ge=1, le=500),
 ):
     """
     列出当前 Alaya 记忆中的种子。
@@ -343,12 +355,19 @@ async def run_episode(req: AgentRequest, request: Request):
     """
     _apply_security(request)
 
-    # Sanitize custom_obs
+    # 校验 custom_obs：安全模块缺失时拒绝（fail-closed），而不是放行
     if req.custom_obs:
-        if not _sanitizer or _sanitizer.sanitize(req.custom_obs):
-            pass  # clean
-        else:
-            raise HTTPException(status_code=400, detail="Invalid custom_obs: contains unsafe values.")
+        if _sanitizer is None:
+            raise HTTPException(status_code=503, detail="Input sanitizer unavailable; custom_obs rejected.")
+        try:
+            _sanitizer.validate_obs(
+                {
+                    "grid_view": req.custom_obs.get("grid_view", [0.0] * 9),
+                    "pos": req.custom_obs.get("pos", [0, 0]),
+                }
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
 
     import time
 
@@ -361,30 +380,48 @@ async def run_episode(req: AgentRequest, request: Request):
     seed_id = req.seed_id or f"ep-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
 
     try:
-        env.reset()
-        if req.custom_obs:
-            pos = req.custom_obs.get("pos", [0, 0])
-            env.agent_pos = list(pos)
+        async with _episode_lock:  # env/alaya 为共享单例，episode 必须串行
+            reflections_before = manas.reflections
+            env.reset()
+            if req.custom_obs:
+                pos = req.custom_obs.get("pos", [0, 0])
+                if (
+                    not isinstance(pos, (list, tuple))
+                    or len(pos) != 2
+                    or not all(isinstance(v, int) and not isinstance(v, bool) and 0 <= v < GRID_SIZE for v in pos)
+                ):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"pos must be two ints within [0, {GRID_SIZE - 1}].",
+                    )
+                env.agent_pos = list(pos)
 
-        init_state = {
-            "obs": env._observe(),
-            "action": "",
-            "reward": 0.0,
-            "done": False,
-            "step": 0,
-            "seeds": [],
-            "unc": 0.0,
-            "manas_passed": True,
-            "tool_calls": [],
-            "recent_rewards": [],
-            "pos_history": [],
-            "metrics": {},
-        }
+            # Bound steps（node_execute 会在达到上限时置 done）
+            step_limit = min(req.max_steps, 200)
 
-        # Bound steps
-        step_limit = min(req.max_steps, 200)
+            init_state = {
+                "obs": env._observe(),
+                "action": "",
+                "reward": 0.0,
+                "done": False,
+                "step": 0,
+                "seeds": [],
+                "unc": 0.0,
+                "manas_passed": True,
+                "tool_calls": [],
+                "recent_rewards": [],
+                "pos_history": [],
+                "metrics": {},
+                "introspection_record": None,
+                "ego_alert": None,
+                "plan_scores": None,
+                "reasoning": "",
+                "steps_since_resource": 0,
+                "steps_at_same_pos": 0,
+                "step_limit": step_limit,
+            }
 
-        final_state = await _get_graph().ainvoke(init_state)
+            final_state = await _get_graph().ainvoke(init_state)
 
         # Collect result
         steps_taken = final_state.get("step", 0)
@@ -399,16 +436,19 @@ async def run_episode(req: AgentRequest, request: Request):
             status="success",
             steps=steps_taken,
             cumulative_reward=round(cum_reward, 2),
-            manas_reflections=manas.reflections,
+            manas_reflections=manas.reflections - reflections_before,
             resources_found=resources_found,
             final_pos=final_state.get("obs", {}).get("pos", [0, 0]),
             seed_id=seed_id,
             duration_ms=duration_ms,
         )
 
-    except Exception as e:
+    except HTTPException:
+        raise
+    except Exception:
+        # 异常细节只进日志，不回传客户端
         logger.exception("[API] Episode failed")
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        raise HTTPException(status_code=500, detail="internal error")
 
 
 @app.get("/metrics/wisdom", tags=["metrics"])
@@ -435,31 +475,14 @@ async def get_wisdom_metrics():
 async def main():
     import uvicorn
 
-    try:
-        asyncio.get_running_loop()
-
-        # Already in a loop: run uvicorn in a separate thread
-        def run_server():
-            uvicorn.run(
-                "yogacara_agent.api_server:app",
-                host="0.0.0.0",
-                port=8000,
-                reload=False,
-                log_level="info",
-            )
-
-        t = threading.Thread(target=run_server, daemon=True)
-        t.start()
-        t.join()
-    except RuntimeError:
-        # No running loop: safe to use asyncio.run()
-        uvicorn.run(
-            "yogacara_agent.api_server:app",
-            host="0.0.0.0",
-            port=8000,
-            reload=False,
-            log_level="info",
-        )
+    # 直接以 app 对象启动，避免字符串 import 路径导致的二次导入
+    uvicorn.run(
+        app,
+        host=os.environ.get("YOGACARA_HOST", "0.0.0.0"),
+        port=int(os.environ.get("YOGACARA_PORT", "8000")),
+        reload=False,
+        log_level="info",
+    )
 
 
 if __name__ == "__main__":
