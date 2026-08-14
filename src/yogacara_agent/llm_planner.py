@@ -16,7 +16,7 @@ class LLMPlanner:
             api_key=config.get("api_key", "mock"),
             timeout=config.get("timeout", 15.0),
         )
-        self.model = config.get("model", "glm-5.2")
+        self.model = config.get("model", "deepseek-v4-flash")
         self.temperature = config.get("temperature", 0.3)
         self.fallback_heuristic = config.get("use_fallback", True)
 
