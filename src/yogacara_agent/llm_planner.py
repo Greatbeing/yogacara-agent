@@ -12,11 +12,11 @@ logger = logging.getLogger(__name__)
 class LLMPlanner:
     def __init__(self, config: dict[str, Any]):
         self.client = OpenAI(
-            base_url=config.get("base_url", "http://localhost:8000/v1"),
+            base_url=config.get("base_url", "https://api.sensenova.cn/v1"),
             api_key=config.get("api_key", "mock"),
             timeout=config.get("timeout", 15.0),
         )
-        self.model = config.get("model", "qwen2.5-7b-instruct")
+        self.model = config.get("model", "glm-5.2")
         self.temperature = config.get("temperature", 0.3)
         self.fallback_heuristic = config.get("use_fallback", True)
 
