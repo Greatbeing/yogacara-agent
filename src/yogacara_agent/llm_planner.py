@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 class LLMPlanner:
     def __init__(self, config: dict[str, Any]):
         self.client = OpenAI(
-            base_url=config.get("base_url", "https://api.sensenova.cn/v1"),
+            base_url=config.get("base_url", "https://token.sensenova.cn/v1"),
             api_key=config.get("api_key", "mock"),
             timeout=config.get("timeout", 15.0),
         )
