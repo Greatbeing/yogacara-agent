@@ -18,7 +18,7 @@ from contextlib import asynccontextmanager, suppress
 from datetime import datetime
 from typing import Any, TYPE_CHECKING
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -47,6 +47,9 @@ _app_session: dict | None = None
 _loop_task: asyncio.Task | None = None
 loop_started = False
 _shutdown_event = asyncio.Event()
+
+# Module-level compiled graph (cached, thread-safe for read-only use)
+_graph: "CompiledStateGraph | None" = None
 
 # ── Security instances ───────────────────────────────────────────────────────
 if _HAS_SECURITY:
@@ -98,11 +101,7 @@ async def lifespan(app: FastAPI):
         logger.info(f"[API] Alaya flushed: {len(alaya.seeds)} seeds persisted")
 
 
-# Module-level compiled graph (cached, thread-safe for read-only use)
-_graph: CompiledStateGraph | None = None
-
-
-def _get_graph() -> CompiledStateGraph:
+def _get_graph() -> "CompiledStateGraph":
     global _graph
     if _graph is None:
         _graph = build_graph()
@@ -296,7 +295,7 @@ async def memory_stats():
 @app.get("/memory/seeds", response_model=list[dict], tags=["memory"])
 async def list_seeds(
     seed_type: str | None = None,
-    limit: int = Field(default=20, ge=1, le=500),
+    limit: int = Query(default=20, ge=1, le=500),
 ):
     """
     列出当前 Alaya 记忆中的种子。
