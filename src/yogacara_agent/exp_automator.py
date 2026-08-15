@@ -3,15 +3,19 @@ import asyncio
 import logging
 import os
 import sys
+import random
+import time
+from collections import deque
 
 # Add src directory to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import numpy as np
 import pandas as pd
-from tqdm.asyncio import tqdm_asyncio
+from tqdm import tqdm
 
-from yogacara_agent.yogacara_langgraph import build_graph, create_session
+from yogacara_agent.constants import RESOURCE_THRESHOLD
+from yogacara_agent.yogacara_test import AlayaMemory, ConsciousnessPlanner, GridSimEnv, ManasController, Seed
 
 logger = logging.getLogger(__name__)
 
@@ -25,58 +29,80 @@ def parse_args():
 
 
 class ExperimentAutomator:
-    def __init__(self, num_episodes: int = 30, max_steps: int = 60, output_dir: str = "./experiments"):
+    def __init__(self, num_episodes: int = 30, max_steps: int = 60, output_dir: str = "./experiments", seed: int | None = None):
         self.num_episodes = num_episodes
         self.max_steps = max_steps
         self.output_dir = output_dir
+        self.seed = seed
         os.makedirs(output_dir, exist_ok=True)
-        self.graph = build_graph()
+        self.last_df = None
+        self.last_stats = None
+        self.last_results = None
+
+    def _apply_seed(self):
+        if self.seed is None:
+            return None
+        random.seed(self.seed)
+        np.random.seed(self.seed)
+        return self.seed
 
     async def _run_single_episode(self, ep_id: int) -> dict:
-        """Run a single episode using isolated session instances."""
-        session = create_session()
-        env = session["env"]
-        env.reset()
-        state = {
-            "obs": env._observe(),
-            "action": "",
-            "reward": 0.0,
-            "done": False,
-            "step": 0,
-            "seeds": [],
-            "unc": 0.0,
-            "manas_passed": True,
-            "tool_calls": [],
-            "recent_rewards": [],
-            "pos_history": [],
-            "metrics": {},
-        }
+        """Run a single episode using isolated core components."""
+        env = GridSimEnv()
+        memory = AlayaMemory()
+        manas = ManasController()
+        planner = ConsciousnessPlanner()
+        obs = env.reset()
         step_log = []
-        prev_step = 0
+        recent_rewards: deque[float] = deque(maxlen=5)
+        pos_history: deque[tuple[int, int]] = deque(maxlen=5)
+        total_reward = 0.0
+        resources_found = 0
+
         try:
-            # Use stream_mode to capture intermediate states per node
-            async for event in self.graph.astream(state, stream_mode="values"):  # type: ignore[call-overload]
-                current_step = event.get("step", 0)
-                # Log only when a new step completes (execute node ran)
-                if current_step > prev_step:
-                    step_log.append(
-                        {
-                            "episode": ep_id,
-                            "step": current_step,
-                            "reward": event.get("reward", 0.0),
-                            "cum_reward": sum(event.get("recent_rewards", [0.0])),
-                            "intercepted": not event.get("manas_passed", True),
-                            "unc": event.get("unc", 0.0),
-                        }
+            for step in range(self.max_steps):
+                seeds = memory.retrieve(obs, k=3)
+                action, unc, _ = planner.plan(obs, seeds, env_resources=env.resources, is_stuck=False)
+                final_action, passed, _ = manas.filter(action, obs, unc, step, recent_rewards, pos_history)
+                next_obs, reward, done = env.step(final_action)
+                total_reward += reward
+                resources_found += 1 if reward > RESOURCE_THRESHOLD else 0
+                recent_rewards.append(reward)
+                pos_history.append(next_obs["pos"])
+                memory.add(
+                    Seed(
+                        state_emb=memory._encode(next_obs),
+                        action=final_action,
+                        reward=reward,
+                        timestamp=time.time(),
+                        importance=0.8,
+                        alignment_score=0.5,
+                        uncertainty=unc,
+                        causal_tag="依他起" if reward >= 0 else "遍计所执",
                     )
-                    prev_step = current_step
+                )
+                step_log.append(
+                    {
+                        "episode": ep_id,
+                        "step": step + 1,
+                        "reward": reward,
+                        "cum_reward": total_reward,
+                        "intercepted": not passed,
+                        "unc": unc,
+                    }
+                )
+                obs = next_obs
+                if done:
+                    break
         except Exception as e:
             logger.warning(f"Episode {ep_id} 异常终止: {e}")
-        return {"ep_id": ep_id, "steps": prev_step, "log": step_log}
+        return {"ep_id": ep_id, "steps": len(step_log), "log": step_log, "resources_found": resources_found}
 
     async def run_all(self) -> pd.DataFrame:
-        tasks = [self._run_single_episode(i) for i in range(self.num_episodes)]
-        results = await tqdm_asyncio.gather(*tasks, desc="🧪 运行实验轮次")
+        self._apply_seed()
+        results = []
+        for i in tqdm(range(self.num_episodes), desc="🧪 运行实验轮次"):
+            results.append(await self._run_single_episode(i))
         all_logs = [log for res in results for log in res["log"]]
         df = pd.DataFrame(all_logs)
         stats = (
@@ -93,6 +119,9 @@ class ExperimentAutomator:
         csv_path = os.path.join(self.output_dir, "experiment_logs.csv")
         df.to_csv(csv_path, index=False)
         stats.to_csv(os.path.join(self.output_dir, "step_stats.csv"), index=False)
+        self.last_df = df
+        self.last_stats = stats
+        self.last_results = results
         logger.info(f"✅ 实验数据已保存: {csv_path}")
         return stats
 

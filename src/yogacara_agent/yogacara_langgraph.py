@@ -524,7 +524,7 @@ def build_graph() -> CompiledStateGraph[YogacaraState, None, YogacaraState]:
     return wf.compile()
 
 
-async def slow_loop(alaya_mem, interval=10):
+async def slow_loop(alaya_mem, interval=10, tracker=None):
     """Background task for periodic memory consolidation and metric computation."""
     from yogacara_agent.compression_metrics import CompressionMetricsCalculator
 
@@ -532,6 +532,11 @@ async def slow_loop(alaya_mem, interval=10):
     while True:
         await asyncio.sleep(interval)
         alaya_mem.perfume_update()
+        if tracker is not None:
+            try:
+                tracker.snapshot(alaya_mem)
+            except Exception:
+                logger.exception("[Evolution] 快照记录异常")
         # 计算压缩指标（记录到日志，供外部监控读取）
         try:
             metrics = metrics_calc.compute(

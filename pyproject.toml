@@ -36,6 +36,7 @@ all = ["yogacara-agent[dev,llm,memory,serve,plot,desktop]"]
 [project.scripts]
 yogacara-run = "yogacara_agent.api_server:main"
 yogacara-exp = "yogacara_agent.exp_automator:main"
+yogacara-bench = "yogacara_agent.benchmark_suite:main"
 yogacara-desktop = "desktop_app:main"
 
 [tool.setuptools.packages.find]

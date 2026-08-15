@@ -16,10 +16,12 @@ import os
 import sys
 from contextlib import asynccontextmanager, suppress
 from datetime import datetime
+from pathlib import Path
 from typing import Any, TYPE_CHECKING
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 # ── Security imports ─────────────────────────────────────────────────────────
@@ -36,6 +38,7 @@ except ImportError:
 
 from yogacara_agent.yogacara_langgraph import GRID_SIZE, build_graph, create_session, slow_loop
 from yogacara_agent.constants import RESOURCE_THRESHOLD
+from yogacara_agent.evolution_tracker import EvolutionTracker
 
 if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph
@@ -47,6 +50,7 @@ _app_session: dict | None = None
 _loop_task: asyncio.Task | None = None
 loop_started = False
 _shutdown_event = asyncio.Event()
+_evolution_tracker = EvolutionTracker()
 
 # Module-level compiled graph (cached, thread-safe for read-only use)
 _graph: "CompiledStateGraph | None" = None
@@ -78,7 +82,7 @@ async def lifespan(app: FastAPI):
 
     session = _get_session()
     if not loop_started:
-        _loop_task = asyncio.create_task(slow_loop(session["alaya"], interval=10))
+        _loop_task = asyncio.create_task(slow_loop(session["alaya"], interval=10, tracker=_evolution_tracker))
         loop_started = True
         logger.info("[API] Slow-loop started (interval=10s)")
 
@@ -262,6 +266,63 @@ async def health():
     )
 
 
+@app.get("/dashboard", tags=["ui"])
+async def dashboard():
+    dashboard_path = Path(__file__).resolve().parents[2] / "desktop" / "dashboard.html"
+    return FileResponse(dashboard_path)
+
+
+@app.get("/api/agent/status", tags=["ui"])
+async def agent_status():
+    session = _get_session()
+    alaya = session["alaya"]
+    env = session["env"]
+    manas = session["manas"]
+    metrics = session.get("metrics", {})
+    last_run = session.get("last_run", {})
+    intro_logger = session.get("introspection")
+    recent_events: list[dict[str, Any]] = []
+    if intro_logger is not None and hasattr(intro_logger, "logs"):
+        for record in list(getattr(intro_logger, "logs", []))[-10:]:
+            if getattr(record, "manas_intercepted", False):
+                recent_events.append(
+                    {
+                        "step": getattr(record, "step", 0),
+                        "nature": getattr(record, "nature", ""),
+                        "reasoning": getattr(record, "reasoning", ""),
+                        "decision_gap": getattr(record, "decision_gap", 0.0),
+                    }
+                )
+
+    wisdom = metrics.get("wisdom") or {}
+    return {
+        "agent_pos": list(getattr(env, "agent_pos", [0, 0])),
+        "step": int(getattr(env, "step_count", 0)),
+        "cumulative_reward": float(last_run.get("cumulative_reward", 0.0)),
+        "uncertainty": float(last_run.get("uncertainty", 0.0)),
+        "manas_reflections": int(getattr(manas, "reflections", 0)),
+        "resources_found": int(last_run.get("resources_found", 0)),
+        "wisdom": wisdom,
+        "seed_count": len(getattr(alaya, "seeds", [])),
+        "updated_at": last_run.get("updated_at", datetime.now().timestamp()),
+        "resources": [list(p) for p in getattr(env, "resources", [])],
+        "traps": [list(p) for p in getattr(env, "traps", [])],
+        "path": [list(p) for p in last_run.get("pos_history", [])],
+        "events": recent_events,
+    }
+
+
+@app.get("/api/evolution/snapshots", tags=["ui"])
+async def evolution_snapshots(limit: int = Query(default=100, ge=1, le=200)):
+    return {"snapshots": _evolution_tracker.get_snapshots(limit=limit)}
+
+
+@app.post("/api/evolution/snapshot", tags=["ui"])
+async def trigger_evolution_snapshot():
+    session = _get_session()
+    return {"status": "ok", "snapshot": _evolution_tracker.snapshot(session["alaya"]) }
+
+
 @app.get("/memory/stats", response_model=MemoryStatsResponse, tags=["memory"])
 async def memory_stats():
     """
@@ -431,6 +492,24 @@ async def run_episode(req: AgentRequest, request: Request):
         resources_found = sum(1 for r in final_state.get("recent_rewards", []) if r > RESOURCE_THRESHOLD)
 
         duration_ms = int((time.monotonic() - t0) * 1000)
+        intro_logger = session.get("introspection")
+        ego_monitor = session.get("ego_monitor")
+        recent_intro = intro_logger.recent_summary(n=20) if intro_logger and hasattr(intro_logger, "recent_summary") else {}
+        nature_dist = recent_intro.get("nature_distribution", {}) if isinstance(recent_intro, dict) else {}
+        round_real = nature_dist.get("圆成实", 0)
+        total_natures = sum(nature_dist.values()) or 1
+        mirror_ratio = round_real / total_natures
+        wisdom_report = ego_monitor.four_wisdoms_report(intro_logger=intro_logger, mirror_ratio=mirror_ratio) if ego_monitor else {}
+
+        session["metrics"] = {"wisdom": wisdom_report}
+        session["last_run"] = {
+            "cumulative_reward": round(cum_reward, 2),
+            "resources_found": resources_found,
+            "uncertainty": final_state.get("unc", 0.0),
+            "updated_at": datetime.now().timestamp(),
+            "step": steps_taken,
+            "pos_history": final_state.get("pos_history", []),
+        }
 
         return AgentResponse(
             status="success",

@@ -1,13 +1,25 @@
-import rclpy
-from geometry_msgs.msg import Twist
-from nav_msgs.msg import Odometry
-from rclpy.node import Node
+"""ROS2 适配器。"""
+
+from __future__ import annotations
+
+try:
+    import rclpy
+    from geometry_msgs.msg import Twist
+    from nav_msgs.msg import Odometry
+    from rclpy.node import Node
+except ImportError:  # pragma: no cover - optional dependency
+    rclpy = None
+    Twist = None
+    Odometry = None
+    Node = object
 
 from .base import BaseSimEnv
 
 
 class ROS2Env(BaseSimEnv, Node):
     def __init__(self, node_name="yogacara_ros2"):
+        if rclpy is None:
+            raise ImportError("ROS2Env requires rclpy, geometry_msgs, and nav_msgs")
         BaseSimEnv.__init__(self)
         Node.__init__(self, node_name)
         self.cmd_pub = self.create_publisher(Twist, "/cmd_vel", 10)

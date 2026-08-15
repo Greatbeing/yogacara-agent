@@ -22,6 +22,7 @@ from yogacara_agent.yogacara_test import (
 from yogacara_agent.ego_monitor import EgoMonitor
 from yogacara_agent.introspection import IntrospectionLogger
 from yogacara_agent.seed_classifier import SeedClassifier
+from yogacara_agent.collaborative import CollaborativeCoordinator, create_collaborative_session
 
 __all__ = [
     # 核心类
@@ -42,4 +43,6 @@ __all__ = [
     "IntrospectionLogger",
     "EgoMonitor",
     "SeedClassifier",
+    "CollaborativeCoordinator",
+    "create_collaborative_session",
 ]

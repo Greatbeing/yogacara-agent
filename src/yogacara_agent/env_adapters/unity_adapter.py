@@ -1,12 +1,23 @@
+"""Unity 适配器。"""
+
+from __future__ import annotations
+
 import numpy as np
-from mlagents_envs.environment import UnityEnvironment
-from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
+
+try:
+    from mlagents_envs.environment import UnityEnvironment
+    from mlagents_envs.side_channel.engine_configuration_channel import EngineConfigurationChannel
+except ImportError:  # pragma: no cover - optional dependency
+    UnityEnvironment = None
+    EngineConfigurationChannel = None
 
 from .base import BaseSimEnv
 
 
 class UnityEnv(BaseSimEnv):
     def __init__(self, file_path=None, worker_id=0):
+        if UnityEnvironment is None:
+            raise ImportError("UnityEnv requires mlagents_envs")
         self.channel = EngineConfigurationChannel()
         self.env = UnityEnvironment(file_name=file_path, worker_id=worker_id, side_channels=[self.channel])
         self.env.reset()
