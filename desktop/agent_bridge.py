@@ -61,6 +61,7 @@ class AgentBridge:
         self._thread: threading.Thread | None = None
 
         self.logs: deque[dict] = deque(maxlen=500)
+        self._cum_reward: float = 0.0  # 累计奖励缓存（O(1) 查询，避免 sum(recent_rewards)）
 
     # ── 节点循环 ────────────────────────────────────────────────────────
     async def _cycle(self, state: dict) -> dict:
@@ -74,11 +75,12 @@ class AgentBridge:
         return state
 
     def step_once(self) -> dict:
-        """执行一步并返回快照。线程安全。"""
+        """执行一步并返回快照。线程安全（_lock 保护，不并发）。"""
         with self._lock:
             if self.state["done"]:
                 return self.get_snapshot()
             self.state = asyncio.run(self._cycle(self.state))
+            self._cum_reward += self.state["reward"]
             self._append_log()
             return self.get_snapshot()
 
@@ -139,11 +141,15 @@ class AgentBridge:
 
     def stop(self) -> dict:
         """停止连续运行（可继续单步）。"""
-        self._running = False
-        self._go.set()  # 唤醒线程使其退出
+        with self._lock:
+            self._running = False
+            self._go.set()  # 唤醒线程使其退出 wait()
         if self._thread is not None:
-            self._thread.join(timeout=2.0)
-        return {"status": "stopped"}
+            self._thread.join(timeout=2.5)
+            alive = self._thread.is_alive()
+            if alive:
+                print(f"[AgentBridge] ⚠  运行线程未在 2.5s 内退出（step={self.state['step']}），继续单步时不受影响")
+        return {"status": "stopped", "thread_alive": self._thread.is_alive() if self._thread else False}
 
     def reset(self) -> dict:
         """重置环境与状态，保留种子记忆（阿赖耶识延续）。"""
@@ -155,6 +161,7 @@ class AgentBridge:
     def _reset_state(self) -> None:
         self.state = _initial_state(self.max_steps)
         self.logs.clear()
+        self._cum_reward = 0.0
         self._running = False
         self._go.set()
 
@@ -205,7 +212,7 @@ class AgentBridge:
             "action": s["action"],
             "reward": round(s["reward"], 2),
             "unc": round(s["unc"], 2),
-            "cumulative_reward": round(sum(s["recent_rewards"]), 2),
+            "cumulative_reward": round(self._cum_reward, 2),
             "recent_rewards": [round(r, 2) for r in s["recent_rewards"]],
             "manas_passed": s["manas_passed"],
             "manas_reflections": ylg.manas.reflections,

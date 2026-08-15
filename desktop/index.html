@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <title>唯识进化框架 · Yogacara Agent Desktop</title>
+<!-- favicon：优先 SVG，回退到 PNG/ICO -->
+<link rel="icon" type="image/svg+xml" href="../assets/yogacara.svg">
+<link rel="icon" type="image/png" href="../assets/favicon.png">
 <style>
   :root {
     --bg: #0f1420; --panel: #171e2e; --panel2: #1d2538; --border: #2a3450;
@@ -19,7 +22,12 @@
     display: flex; align-items: center; gap: 12px;
     padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--panel);
   }
-  header h1 { font-size: 15px; font-weight: 600; }
+  header .brand { display: flex; align-items: center; gap: 10px; }
+  header .logo {
+    display: block; border-radius: 8px;
+    box-shadow: 0 0 12px rgba(77,163,255,.25);
+  }
+  header h1 { font-size: 15px; font-weight: 600; line-height: 1.2; }
   header .sub { color: var(--muted); font-size: 12px; }
   #status-badge {
     margin-left: auto; padding: 3px 12px; border-radius: 12px;
@@ -69,7 +77,7 @@
   .wcard .name { font-size: 12px; margin-bottom: 6px; }
   .wcard .val { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
   .wcard .bar { height: 5px; background: #2a3450; border-radius: 3px; overflow: hidden; }
-  .wcard .bar i { display: block; height: 100%; border-radius: 3px; transition: width .3s; }
+  .wcard .bar span { display: block; height: 100%; border-radius: 3px; transition: width .3s; }
   .wcard .st { font-size: 11px; margin-top: 5px; color: var(--muted); }
   .wcard.ok .st { color: var(--good); }
   .wcard.ng .st { color: var(--bad); }
@@ -78,7 +86,7 @@
   .mem-line { display: flex; align-items: center; gap: 8px; }
   .mem-line .lbl { color: var(--muted); width: 88px; font-size: 12px; }
   .mem-line .bar { flex: 1; height: 8px; background: #2a3450; border-radius: 4px; overflow: hidden; }
-  .mem-line .bar i { display: block; height: 100%; transition: width .3s; }
+  .mem-line .bar span { display: block; height: 100%; transition: width .3s; }
   .mem-line .num { width: 52px; text-align: right; font-size: 12px; }
   .stat-chips { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
   .chip { background: var(--panel2); border-radius: 6px; padding: 4px 10px; font-size: 12px; color: var(--muted); }
@@ -106,6 +114,7 @@
     border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-family: inherit;
   }
   input[type=range] { accent-color: var(--accent); width: 130px; }
+  input[type=range]:disabled { opacity: .4; }
   #readout { margin-left: auto; color: var(--muted); font-size: 12px; }
   #readout b { color: var(--text); font-size: 14px; }
   #readout .pos-reward { color: var(--good); }
@@ -113,7 +122,7 @@
 
   /* ── 日志 ── */
   .log-panel { flex: 0 0 180px; display: flex; flex-direction: column; padding: 10px 16px; background: var(--panel); border-top: 1px solid var(--border); }
-  .log-panel h3 { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .log-panel h3 { font-size: 12px; color: var(--muted); margin-bottom: 6px; display: flex; align-items: center; }
   #logs { flex: 1; overflow-y: auto; font-family: Consolas, monospace; font-size: 12px; line-height: 1.7; }
   .log-row { display: flex; gap: 10px; white-space: nowrap; }
   .log-row .st { color: var(--muted); width: 56px; }
@@ -133,8 +142,40 @@
 <body>
 
 <header>
-  <h1>🪷 唯识进化框架</h1>
-  <span class="sub">Yogacara Agent Desktop · 八识认知架构</span>
+  <div class="brand">
+    <svg class="logo" viewBox="0 0 256 256" width="30" height="30" aria-label="Yogacara 莲花 Logo">
+      <defs>
+        <radialGradient id="logobg" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#1d2538"/><stop offset="100%" stop-color="#0f1420"/>
+        </radialGradient>
+        <linearGradient id="logopetal" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#7ec8ff"/><stop offset="60%" stop-color="#4da3ff"/>
+          <stop offset="100%" stop-color="#2b7de9"/>
+        </linearGradient>
+        <radialGradient id="logocenter" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#ffd700"/><stop offset="100%" stop-color="#ff9800"/>
+        </radialGradient>
+      </defs>
+      <circle cx="128" cy="128" r="120" fill="url(#logobg)" stroke="#2a3450" stroke-width="2"/>
+      <g transform="translate(128,128)">
+        <g transform="rotate(0)"><ellipse cx="0" cy="-52" rx="18" ry="38" fill="url(#logopetal)"/></g>
+        <g transform="rotate(45)"><ellipse cx="0" cy="-52" rx="18" ry="38" fill="url(#logopetal)" opacity="0.9"/></g>
+        <g transform="rotate(90)"><ellipse cx="0" cy="-52" rx="18" ry="38" fill="url(#logopetal)" opacity="0.85"/></g>
+        <g transform="rotate(135)"><ellipse cx="0" cy="-52" rx="18" ry="38" fill="url(#logopetal)" opacity="0.8"/></g>
+        <g transform="rotate(180)"><ellipse cx="0" cy="-52" rx="18" ry="38" fill="url(#logopetal)" opacity="0.78"/></g>
+        <g transform="rotate(225)"><ellipse cx="0" cy="-52" rx="18" ry="38" fill="url(#logopetal)" opacity="0.76"/></g>
+        <g transform="rotate(270)"><ellipse cx="0" cy="-52" rx="18" ry="38" fill="url(#logopetal)" opacity="0.74"/></g>
+        <g transform="rotate(315)"><ellipse cx="0" cy="-52" rx="18" ry="38" fill="url(#logopetal)" opacity="0.72"/></g>
+        <circle cx="0" cy="0" r="16" fill="url(#logocenter)"/>
+        <circle cx="0" cy="0" r="10" fill="#fff8e1" opacity="0.5"/>
+        <circle cx="0" cy="0" r="4" fill="#ffffff" opacity="0.7"/>
+      </g>
+    </svg>
+    <div class="brand-text">
+      <h1>唯识进化框架</h1>
+      <span class="sub">Yogacara Agent Desktop · 八识认知架构</span>
+    </div>
+  </div>
   <span id="status-badge">初始化…</span>
 </header>
 
@@ -156,19 +197,19 @@
       <div class="wisdom-row">
         <div class="wcard" id="wc-mirror">
           <div class="name">大圆镜智</div><div class="val">--</div>
-          <div class="bar"><i style="background:var(--gold)"></i></div><div class="st">--</div>
+          <div class="bar"><span style="background:var(--gold)"></span></div><div class="st">--</div>
         </div>
         <div class="wcard" id="wc-equanimity">
           <div class="name">平等性智</div><div class="val">--</div>
-          <div class="bar"><i style="background:var(--accent)"></i></div><div class="st">--</div>
+          <div class="bar"><span style="background:var(--accent)"></span></div><div class="st">--</div>
         </div>
         <div class="wcard" id="wc-prajna">
           <div class="name">妙观察智</div><div class="val">--</div>
-          <div class="bar"><i style="background:var(--good)"></i></div><div class="st">--</div>
+          <div class="bar"><span style="background:var(--good)"></span></div><div class="st">--</div>
         </div>
         <div class="wcard" id="wc-action">
           <div class="name">成所作智</div><div class="val">--</div>
-          <div class="bar"><i style="background:var(--orange)"></i></div><div class="st">--</div>
+          <div class="bar"><span style="background:var(--orange)"></span></div><div class="st">--</div>
         </div>
       </div>
     </div>
@@ -176,12 +217,12 @@
     <div class="panel">
       <h3>阿赖耶识 · 种子库仪表盘</h3>
       <div class="mem-grid">
-        <div class="mem-line"><span class="lbl">名言种</span><div class="bar"><i id="bar-namarupa" style="background:var(--accent)"></i></div><span class="num" id="num-namarupa">0</span></div>
-        <div class="mem-line"><span class="lbl">平均重要性</span><div class="bar"><i id="bar-imp" style="background:var(--gold)"></i></div><span class="num" id="num-imp">0</span></div>
-        <div class="mem-line"><span class="lbl">业种</span><div class="bar"><i id="bar-karma" style="background:var(--good)"></i></div><span class="num" id="num-karma">0</span></div>
-        <div class="mem-line"><span class="lbl">平均align</span><div class="bar"><i id="bar-align" style="background:var(--accent)"></i></div><span class="num" id="num-align">0</span></div>
-        <div class="mem-line"><span class="lbl">异熟种</span><div class="bar"><i id="bar-vipaka" style="background:var(--orange)"></i></div><span class="num" id="num-vipaka">0</span></div>
-        <div class="mem-line"><span class="lbl">末那反思</span><div class="bar"><i id="bar-manas" style="background:var(--bad)"></i></div><span class="num" id="num-manas">0</span></div>
+        <div class="mem-line"><span class="lbl">名言种</span><div class="bar"><span id="bar-namarupa" style="background:var(--accent)"></span></div><span class="num" id="num-namarupa">0</span></div>
+        <div class="mem-line"><span class="lbl">平均重要性</span><div class="bar"><span id="bar-imp" style="background:var(--gold)"></span></div><span class="num" id="num-imp">0</span></div>
+        <div class="mem-line"><span class="lbl">业种</span><div class="bar"><span id="bar-karma" style="background:var(--good)"></span></div><span class="num" id="num-karma">0</span></div>
+        <div class="mem-line"><span class="lbl">平均align</span><div class="bar"><span id="bar-align" style="background:var(--accent)"></span></div><span class="num" id="num-align">0</span></div>
+        <div class="mem-line"><span class="lbl">异熟种</span><div class="bar"><span id="bar-vipaka" style="background:var(--orange)"></span></div><span class="num" id="num-vipaka">0</span></div>
+        <div class="mem-line"><span class="lbl">末那反思</span><div class="bar"><span id="bar-manas" style="background:var(--bad)"></span></div><span class="num" id="num-manas">0</span></div>
       </div>
       <div class="stat-chips">
         <span class="chip">种子总数 <b id="chip-total">0</b></span>
@@ -204,7 +245,7 @@
   <button id="btn-step">⏭ 单步</button>
   <button id="btn-reset">↺ 重置</button>
   <div class="ctrl-sep"></div>
-  <div class="ctrl-group">速度 <input type="range" id="speed" min="0" max="1000" step="50" value="300"><span id="speed-val">300ms/步</span></div>
+  <div class="ctrl-group">速度 <input type="range" id="speed" min="50" max="1000" step="50" value="300"><span id="speed-val">300ms/步</span></div>
   <div class="ctrl-sep"></div>
   <div class="ctrl-group">步数上限 <input type="number" id="max-steps" min="1" max="200" value="60"></div>
   <div id="readout">
@@ -216,7 +257,9 @@
 </div>
 
 <div class="log-panel">
-  <h3>内省日志流 · 自指环观察（第六识 introspection / 第七识 manas）</h3>
+  <h3>内省日志流 · 自指环观察（第六识 introspection / 第七识 manas）
+    <button id="btn-clear-logs" title="清空日志" style="margin-left:8px;padding:2px 8px;font-size:11px;border-radius:5px;">清空</button>
+  </h3>
   <div id="logs"></div>
 </div>
 
@@ -259,7 +302,7 @@ function renderWorld(s) {
 function setCard(id, valText, pct, status, ok) {
   const card = $(id);
   card.querySelector(".val").textContent = valText;
-  card.querySelector(".bar i").style.width = Math.min(100, Math.max(0, pct * 100)) + "%";
+  card.querySelector(".bar span").style.width = Math.min(100, Math.max(0, pct * 100)) + "%";
   const st = card.querySelector(".st");
   st.textContent = status;
   card.classList.toggle("ok", ok === true);
@@ -268,15 +311,24 @@ function setCard(id, valText, pct, status, ok) {
 function renderWisdom(s) {
   const r = (s.four_wisdom && s.four_wisdom.report) || {};
   const m = s.four_wisdom ? s.four_wisdom.mirror_ratio : 0;
+  // 大圆镜智：圆成实种子比例
   setCard("wc-mirror", (m * 100).toFixed(1) + "%", m,
           (r["大圆镜智"] || {}).status || "--", m >= 0.6);
+  // 平等性智：score 是 1-(我执/目标) 归一化得分，越高越好
   const eq = r["平等性智"] || {};
-  setCard("wc-equanimity", (eq.raw_long_term_ego ?? "--"),
-          1 - (eq.raw_long_term_ego || 1), eq.status || "--", eq.status === "达标");
+  const eqScore = typeof eq.score === "number" ? eq.score : null;
+  setCard("wc-equanimity",
+          eqScore !== null ? (eqScore * 100).toFixed(1) + "%" : "--",
+          eqScore !== null ? eqScore : 0,
+          eq.status || "--", eq.status === "达标");
+  // 妙观察智：ratio 是 1-(遍计/目标) 得分；raw_prajna_ratio 是原始比例字符串
   const pj = r["妙观察智"] || {};
-  const pjr = typeof pj.ratio === "number" ? pj.ratio : 0;
-  setCard("wc-prajna", (pj.raw_prajna_ratio) || (pjr * 100).toFixed(0) + "%",
-          1 - pjr, pj.status || "--", pj.status === "达标");
+  const pjScore = typeof pj.ratio === "number" ? pj.ratio : null;
+  setCard("wc-prajna",
+          pjScore !== null ? (pjScore * 100).toFixed(1) + "%" : (pj.raw_prajna_ratio || "--"),
+          pjScore !== null ? pjScore : 0,
+          pj.status || "--", pj.status === "达标");
+  // 成所作智：专注行动效能 score
   const ac = r["成所作智"] || {};
   const acs = typeof ac.score === "number" ? ac.score : null;
   setCard("wc-action", acs !== null ? acs.toFixed(2) : "--",
@@ -304,8 +356,12 @@ function renderMemory(s) {
   $("chip-nature").textContent = s.nature;
 }
 
-/* ── 火花线 ── */
+/* ── 火花线（数据未变化时跳过重绘，避免每 200ms 重建 canvas） ── */
+let lastSparkKey = "";
 function renderSpark(s) {
+  const key = s.recent_rewards.join(",") + "|" + s.step;
+  if (key === lastSparkKey) return;
+  lastSparkKey = key;
   // 由 recent_rewards 重建累计曲线
   cumSeries = [];
   let acc = 0;
@@ -337,25 +393,33 @@ function renderSpark(s) {
   ctx.strokeStyle = "#4da3ff"; ctx.lineWidth = 1.6; ctx.stroke();
 }
 
-/* ── 日志流 ── */
+/* ── 日志流 ──（textContent 安全构建，防 XSS） */
 function renderLogs(s) {
   const box = $("logs");
   const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+  const mk = (cls, txt) => {
+    const el = document.createElement("span");
+    if (cls) el.className = cls;
+    el.textContent = txt;
+    return el;
+  };
   s.logs.forEach(l => {
     if (l.step <= lastLogStep) return;
-    const row = document.createElement("div"); row.className = "log-row";
-    const rewCls = l.reward > 0 ? "pos" : (l.reward < 0 ? "neg" : "");
+    const row = document.createElement("div");
+    row.className = "log-row";
+    row.appendChild(mk("st", "Step " + String(l.step).padStart(2, "0")));
+    row.appendChild(mk("nature " + (l.nature || "依他起"), l.nature || "依他起"));
+    row.appendChild(mk("act", l.action || "--"));
+    const rewEl = mk("rew", (l.reward >= 0 ? "+" : "") + l.reward.toFixed(1));
+    if (l.reward > 0) rewEl.classList.add("pos");
+    else if (l.reward < 0) rewEl.classList.add("neg");
+    row.appendChild(rewEl);
+    row.appendChild(mk("unc", "unc " + l.unc.toFixed(2)));
     const note = [];
     if (!l.manas_passed) note.push("末那拦截↩");
     if (l.ego_triggered) note.push("我执⚠");
-    if (l.reasoning) note.push(l.reasoning.slice(0, 60));
-    row.innerHTML =
-      `<span class="st">Step ${String(l.step).padStart(2, "0")}</span>` +
-      `<span class="nature ${l.nature}">${l.nature}</span>` +
-      `<span class="act">${l.action}</span>` +
-      `<span class="rew ${rewCls}">${l.reward >= 0 ? "+" : ""}${l.reward.toFixed(1)}</span>` +
-      `<span class="unc">unc ${l.unc.toFixed(2)}</span>` +
-      `<span class="note">${note.join(" ｜ ")}</span>`;
+    if (l.reasoning) note.push(String(l.reasoning).slice(0, 60));
+    row.appendChild(mk("note", note.join(" ｜ ")));
     box.appendChild(row);
     lastLogStep = l.step;
   });
@@ -382,7 +446,7 @@ function renderStatus(s) {
 
 function renderAll(s) {
   renderWorld(s); renderWisdom(s); renderMemory(s);
-  renderSpark(s); renderLogs(s); renderStatus(s);
+  renderSpark(s); renderLogs(s); renderStatus(s); renderButtons(s);
 }
 
 /* ── 轮询与控制 ── */
@@ -392,6 +456,15 @@ async function poll() {
   busy = true;
   try { renderAll(await api.get_snapshot()); } catch (e) { /* 忽略瞬时错误 */ }
   busy = false;
+}
+
+/* 按钮状态与运行语义同步（pywebview 无事件推送，靠快照轮询推断） */
+function renderButtons(s) {
+  const startBtn = $("btn-start"), pauseBtn = $("btn-pause");
+  startBtn.disabled = !!s.running;
+  startBtn.textContent = s.paused ? "▶ 继续" : (s.done ? "▶ 新轮回" : "▶ 运行");
+  pauseBtn.disabled = !s.running && !s.paused;
+  pauseBtn.textContent = s.paused ? "▶ 恢复" : "⏸ 暂停";
 }
 
 async function startRun() {
@@ -411,7 +484,12 @@ window.addEventListener("DOMContentLoaded", () => {
   $("btn-reset").onclick = async () => {
     if (!api) return;
     lastLogStep = -1; $("logs").innerHTML = "";
+    lastSparkKey = "";
     renderAll(await api.reset());
+  };
+  $("btn-clear-logs").onclick = () => {
+    lastLogStep = -1;
+    $("logs").innerHTML = "";
   };
   $("speed").oninput = e => {
     $("speed-val").textContent = e.target.value + "ms/步";

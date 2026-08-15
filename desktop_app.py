@@ -25,6 +25,7 @@ logging.basicConfig(level=logging.WARNING, format="%(asctime)s [%(name)s] %(mess
 logging.getLogger("yogacara_agent").setLevel(logging.INFO)
 
 HTML_PATH = os.path.join(_ROOT, "desktop", "index.html")
+ICON_PATH = os.path.join(_ROOT, "assets", "yogacara.ico")
 
 
 def main() -> int:
@@ -48,8 +49,14 @@ def main() -> int:
         height=820,
         min_size=(980, 700),
         text_select=False,
+        background_color="#0f1420",
     )
-    webview.start(debug=False)
+    # Windows 平台使用 .ico（pywebview 6.2+ 支持）
+    # 若 ICO 不存在则降级为无图标启动
+    if os.path.isfile(ICON_PATH):
+        webview.start(debug=False, icon=ICON_PATH)
+    else:
+        webview.start(debug=False)
     # 窗口关闭后收尾
     bridge.stop()
     print(f"[Desktop] 已退出 | 种子库保留 {len(bridge.state.get('seeds', []))} 条记忆")
