@@ -66,6 +66,10 @@ class PersistentAlayaMemory:
             self._init_chroma()
 
     # ── 编码与距离 ──────────────────────────────────────────────────────
+    def encode(self, obs: dict) -> list[float]:
+        """将观察编码为向量（公开方法）。"""
+        return self._encode(obs)
+
     def _encode(self, obs: dict) -> list[float]:
         """将观察编码为向量。"""
         return [obs["pos"][0] / GRID_SIZE, obs["pos"][1] / GRID_SIZE] + [v / 2.0 for v in obs["grid_view"]]

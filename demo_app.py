@@ -65,16 +65,16 @@ class GridSimEnv:
         ny = max(0, min(GRID_SIZE - 1, self.agent_pos[1] + dy))
         self.agent_pos = [nx, ny]
         self.step_count += 1
-        reward = -0.1
+        reward = -0.1  # STEP_COST
         # GridSimV2: STAY has positive reward (existence bonus = "依他起性")
         if action == "STAY":
-            reward += 0.5
+            reward += 0.5  # STAY_BONUS
         pos = tuple(self.agent_pos)
         if pos in self.resources:
-            reward = 5.0
+            reward = 5.0  # RESOURCE_REWARD
             self.resources.remove(pos)
         elif pos in self.traps:
-            reward = -3.0
+            reward = -3.0  # TRAP_REWARD
         if not self.resources or self.step_count >= 60:
             self.done = True
         return self._observe(), reward, self.done

@@ -193,35 +193,18 @@ class AlayaRing:
 
     # ── 内部方法 ────────────────────────────────────────────────────────
     def _get_four_wisdom(self) -> dict[str, float]:
-        """
-        从 ego_monitor 获取四智指标（如果没有则返回默认值）。
-
-        期望 ego_monitor 有：
-            .four_wisdom_report() -> {mirror_ratio, ego_score, misapprehension_ratio, execution_rate}
-        """
-        defaults = {
-            "mirror_ratio": 0.75,
-            "ego_score": 0.1,
-            "misapprehension_ratio": 0.0,
-            "execution_rate": 0.99,
-        }
-
+        """从 ego_monitor 获取四智指标（扁平英文键格式）。"""
         if self.ego is None:
-            return defaults
+            return {"mirror_ratio": 0.75, "ego_score": 0.1, "misapprehension_ratio": 0.0, "execution_rate": 0.99}
 
         try:
-            report = getattr(self.ego, "four_wisdom_report", lambda: None)()
+            report = self.ego.flat_wisdom_report()
             if report:
-                return {
-                    "mirror_ratio": report.get("mirror_ratio", defaults["mirror_ratio"]),
-                    "ego_score": report.get("ego_score", defaults["ego_score"]),
-                    "misapprehension_ratio": report.get("misapprehension_ratio", defaults["misapprehension_ratio"]),
-                    "execution_rate": report.get("execution_rate", defaults["execution_rate"]),
-                }
+                return report
         except Exception:
             pass
 
-        return defaults
+        return {"mirror_ratio": 0.75, "ego_score": 0.1, "misapprehension_ratio": 0.0, "execution_rate": 0.99}
 
     def __repr__(self) -> str:
         stats = self.alaya.get_stats()

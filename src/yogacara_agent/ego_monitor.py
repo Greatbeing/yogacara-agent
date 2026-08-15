@@ -221,6 +221,20 @@ class EgoMonitor:
             },
         }
 
+    def flat_wisdom_report(self, intro_logger=None, mirror_ratio=0.0) -> dict[str, float]:
+        """
+        返回扁平英文键的四智指标，供 AlayaRing / CompressionMetrics 使用。
+
+        键名：mirror_ratio, ego_score, misapprehension_ratio, execution_rate
+        """
+        report = self.four_wisdoms_report(intro_logger=intro_logger, mirror_ratio=mirror_ratio)
+        return {
+            "mirror_ratio": mirror_ratio,
+            "ego_score": report.get("平等性智", {}).get("score", 0.1),
+            "misapprehension_ratio": report.get("妙观察智", {}).get("ratio", 0.0),
+            "execution_rate": report.get("成所作智", {}).get("execution_rate", 0.99),
+        }
+
     def reset(self):
         """重置当前 session 的数据（新 episodes 开始时调用）。"""
         self.ego_score_history.clear()

@@ -35,6 +35,7 @@ except ImportError:
     _HAS_SECURITY = False
 
 from yogacara_agent.yogacara_langgraph import GRID_SIZE, build_graph, create_session, slow_loop
+from yogacara_agent.constants import RESOURCE_THRESHOLD
 
 if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph
@@ -428,7 +429,7 @@ async def run_episode(req: AgentRequest, request: Request):
         cum_reward = sum(final_state.get("recent_rewards", []))
 
         # Count resources (reward > 2.0 signals resource found in GridSimV2)
-        resources_found = sum(1 for r in final_state.get("recent_rewards", []) if r > 2.0)
+        resources_found = sum(1 for r in final_state.get("recent_rewards", []) if r > RESOURCE_THRESHOLD)
 
         duration_ms = int((time.monotonic() - t0) * 1000)
 

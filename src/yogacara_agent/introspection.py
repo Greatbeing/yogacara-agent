@@ -11,6 +11,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
+from yogacara_agent.constants import RESOURCE_THRESHOLD, STEP_COST, STAY_BONUS
+
 
 @dataclass
 class IntrospectionRecord:
@@ -253,7 +255,7 @@ class IntrospectionLogger:
             rew = r.obs.get("reward", 0)
             act = r.action
             # 资源格：reward ≈ +5.0
-            if rew >= 4.0 or rew <= -2.0 or -0.2 <= rew <= 0.7 or rew == -0.1 and act != "STAY":
+            if rew >= RESOURCE_THRESHOLD or rew <= -2.0 or -0.2 <= rew <= 0.7 or rew == -0.1 and act != "STAY":
                 matched += 1
         # 吻合度（归一化到 [0,1]，0.8 以上算达标）
         alignment_rate = matched / total
@@ -263,7 +265,7 @@ class IntrospectionLogger:
         wisdom_score = loop_rate * 0.3 + intent_rate * 0.3 + alignment_score * 0.4
 
         # 资源发现率（额外参考）
-        resources_found = sum(1 for r in records if r.obs.get("reward", 0) >= 4.0)
+        resources_found = sum(1 for r in records if r.obs.get("reward", 0) >= RESOURCE_THRESHOLD)
 
         return {
             "score": round(wisdom_score, 3),

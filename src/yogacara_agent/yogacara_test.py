@@ -49,6 +49,14 @@ VIPAKA_RATE = 0.2  # VipakaEngine align 更新步长
 ALIGN_MIN = 0.05
 ALIGN_MAX = 0.95
 
+# 共享常量（源自 constants.py，供 GridSimEnv 使用）
+RESOURCE_REWARD = 5.0
+TRAP_REWARD = -3.0
+STEP_COST = -0.1
+STAY_BONUS = 0.5
+RESOURCE_THRESHOLD = 4.0
+STAGNATION_THRESHOLD = -0.48
+
 
 # ── 统一种子接口 ──────────────────────────────────────────────────────
 
@@ -125,15 +133,15 @@ class GridSimEnv:
         ny = max(0, min(GRID_SIZE - 1, self.agent_pos[1] + dy))
         self.agent_pos = [nx, ny]
         self.step_count += 1
-        reward = -0.1
+        reward = STEP_COST
         if action == "STAY":
-            reward += 0.5  # GridSimV2: STAY = 存在奖励
+            reward += STAY_BONUS  # GridSimV2: STAY = 存在奖励
         pos = tuple(self.agent_pos)
         if pos in self.resources:
-            reward = 5.0
+            reward = RESOURCE_REWARD
             self.resources.remove(pos)
         elif pos in self.traps:
-            reward = -3.0
+            reward = TRAP_REWARD
         if not self.resources or self.step_count >= 60:
             self.done = True
         return self._observe(), reward, self.done
@@ -242,7 +250,7 @@ class ManasController:
         if step - self.last_intercept < self.cooldown:
             return action, True, "冷却放行"
         target_risk = 1.0 if obs["grid_view"][ACTION_TO_IDX.get(action, 4)] == -1.0 else 0.0
-        stagnation = step > 15 and len(recent_rew) >= 5 and sum(recent_rew) <= -0.48
+        stagnation = step > 15 and len(recent_rew) >= 5 and sum(recent_rew) <= STAGNATION_THRESHOLD
         loop = step > 12 and len(pos_hist) >= 5 and len(set(pos_hist)) <= 2
         threshold = 0.45 + min(0.15, step / 80.0)
         danger = target_risk * 0.8 + max(0.0, unc - 0.80) * 0.2
@@ -631,7 +639,7 @@ class YogacaraAgent:
             self.metrics["steps"] += 1
             self.metrics["reward"] += rew
 
-            if rew > 2.0:
+            if rew > RESOURCE_THRESHOLD:
                 self.metrics["resources_found"] += 1
                 self.planner._steps_without_resource = 0
                 self._steps_stuck = 0

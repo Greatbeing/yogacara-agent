@@ -10,11 +10,22 @@ from langchain_core.tools import tool
 from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
+from yogacara_agent.constants import (
+    GRID_SIZE,
+    ACTIONS,
+    ACTION_TO_IDX,
+    RESOURCE_REWARD,
+    TRAP_REWARD,
+    STEP_COST,
+    STAY_BONUS,
+    RESOURCE_THRESHOLD,
+    STAGNATION_THRESHOLD,
+    CONSOLIDATION_INTERVAL,
+    DEFAULT_IMPORTANCE,
+)
+
 logger = logging.getLogger(__name__)
 
-GRID_SIZE = 10
-ACTIONS = ["UP", "DOWN", "LEFT", "RIGHT", "STAY"]
-ACTION_TO_IDX = {"UP": 1, "DOWN": 7, "LEFT": 3, "RIGHT": 5, "STAY": 4}
 # 模块私有随机源：保持 demo 可复现，同时避免污染宿主进程的全局 random 状态
 _rng = random.Random(42)
 
@@ -77,6 +88,13 @@ class GridSimEnv:
     _INITIAL_RESOURCES = [(7, 7), (3, 8), (8, 2)]
     _TRAPS = [(4, 4), (6, 1), (2, 6)]
 
+    # 奖励常量（供外部引用，避免魔法数）
+    RESOURCE_REWARD = RESOURCE_REWARD
+    TRAP_REWARD = TRAP_REWARD
+    STEP_COST = STEP_COST
+    STAY_BONUS = STAY_BONUS
+    RESOURCE_THRESHOLD = RESOURCE_THRESHOLD
+
     def __init__(self):
         self.agent_pos = [0, 0]
         self.resources = list(self._INITIAL_RESOURCES)
@@ -89,27 +107,11 @@ class GridSimEnv:
         self.resources = list(self._INITIAL_RESOURCES)
         self.step_count = 0
         self.done = False
-        return self._observe()
+        return self.observe()
 
-    def step(self, action: str) -> tuple[dict, float, bool]:
-        dx, dy = {"UP": (-1, 0), "DOWN": (1, 0), "LEFT": (0, -1), "RIGHT": (0, 1), "STAY": (0, 0)}[action]
-        nx = max(0, min(GRID_SIZE - 1, self.agent_pos[0] + dx))
-        ny = max(0, min(GRID_SIZE - 1, self.agent_pos[1] + dy))
-        self.agent_pos = [nx, ny]
-        self.step_count += 1
-        reward = -0.1
-        # GridSimV2: STAY has positive reward (existence bonus)
-        if action == "STAY":
-            reward += 0.5
-        pos = tuple(self.agent_pos)
-        if pos in self.resources:
-            reward = 5.0
-            self.resources.remove(pos)
-        elif pos in self.traps:
-            reward = -3.0
-        if not self.resources or self.step_count >= 60:
-            self.done = True
-        return self._observe(), reward, self.done
+    def observe(self) -> dict:
+        """公开的观察方法。"""
+        return self._observe()
 
     def _observe(self) -> dict:
         view = [0.0] * 9
@@ -123,16 +125,44 @@ class GridSimEnv:
                         view[i * 3 + j] = -1.0
         return {"grid_view": view, "pos": tuple(self.agent_pos), "step": self.step_count}
 
+    def step(self, action: str) -> tuple[dict, float, bool]:
+        dx, dy = {"UP": (-1, 0), "DOWN": (1, 0), "LEFT": (0, -1), "RIGHT": (0, 1), "STAY": (0, 0)}[action]
+        nx = max(0, min(GRID_SIZE - 1, self.agent_pos[0] + dx))
+        ny = max(0, min(GRID_SIZE - 1, self.agent_pos[1] + dy))
+        self.agent_pos = [nx, ny]
+        self.step_count += 1
+        reward = STEP_COST
+        if action == "STAY":
+            reward += STAY_BONUS
+        pos = tuple(self.agent_pos)
+        if pos in self.resources:
+            reward = RESOURCE_REWARD
+            self.resources.remove(pos)
+        elif pos in self.traps:
+            reward = TRAP_REWARD
+        if not self.resources or self.step_count >= 60:
+            self.done = True
+        return self._observe(), reward, self.done
+
 
 # 使用持久化阿赖耶识（文件存储 + 可选向量存储）
 from yogacara_agent.alaya_persistent import PersistentAlayaMemory  # noqa: E402
+from yogacara_agent.vipaka_engine import VipakaEngine  # noqa: E402
+from yogacara_agent.consolidation_engine import ConsolidationEngine  # noqa: E402
+from yogacara_agent.constants import (
+    CONSOLIDATION_INTERVAL,
+    DEFAULT_IMPORTANCE,
+)
 
 
 class AlayaMemory(PersistentAlayaMemory):
-    """兼容旧接口的持久化阿赖耶识。"""
+    """兼容旧接口的持久化阿赖耶识，附带 Vipaka 反馈引擎。"""
 
     def __init__(self):
         super().__init__(storage="file", path="memory/seeds.jsonl")
+        self.vipaka = VipakaEngine(self, rate=0.2)
+        self.consolidator = ConsolidationEngine()
+        self._last_consolidation_step = 0
 
 
 class ManasController:
@@ -145,7 +175,7 @@ class ManasController:
         if step - self.last_intercept < self.cooldown:
             return action, True, "冷却放行"
         target_risk = 1.0 if obs["grid_view"][ACTION_TO_IDX.get(action, 4)] == -1.0 else 0.0
-        stagnation = step > 15 and len(recent_rew) >= 5 and sum(recent_rew) <= -0.48
+        stagnation = step > 15 and len(recent_rew) >= 5 and sum(recent_rew) <= STAGNATION_THRESHOLD
         loop = step > 12 and len(pos_hist) >= 5 and len(set(pos_hist)) <= 2
         threshold = 0.45 + min(0.15, step / 80.0)
         danger = target_risk * 0.8 + max(0.0, unc - 0.80) * 0.2
@@ -221,7 +251,7 @@ def create_session() -> dict:
 
 async def node_perceive(state: YogacaraState) -> YogacaraState:
     if state["step"] == 0 and not state["obs"].get("pos"):
-        state["obs"] = env._observe()
+        state["obs"] = env.observe()
     state["seeds"] = alaya.retrieve(state["obs"])
     return state
 
@@ -357,11 +387,25 @@ async def node_execute(state: YogacaraState) -> YogacaraState:
     else:
         state["steps_at_same_pos"] = state.get("steps_at_same_pos", 0) + 1
     # Exploration counter: 未获得资源时递增，获得资源时清零
-    if rew >= 4.0:
+    if rew >= RESOURCE_THRESHOLD:
         state["steps_since_resource"] = 0
         planner._steps_without_resource = 0  # sync with shared planner
     else:
         state["steps_since_resource"] = state.get("steps_since_resource", 0) + 1
+
+    # ── Vipaka 反馈：每步用当前动作的果报更新相关种子 align ──────
+    try:
+        vipaka_result = alaya.vipaka.process_outcome(
+            step=state["step"],
+            action=state["action"],
+            reward=rew,
+            unc=state["unc"],
+            obs=next_obs,
+        )
+        if vipaka_result.seeds_updated > 0:
+            logger.debug(f"Vipaka: {vipaka_result}")
+    except Exception:
+        logger.exception("[Vipaka] 反馈处理异常")
     # 尊重调用方设置的步数上限（API 的 max_steps）
     if not state["done"] and state["step"] >= state.get("step_limit", 60):
         state["done"] = True
@@ -415,17 +459,37 @@ async def node_store(state: YogacaraState) -> YogacaraState:
     seed_tag = f"{classification.seed_type}_{classification.subtype}" if is_vipaka else classification.tag
     alaya.add(
         {
-            "emb": alaya._encode(state["obs"]),
+            "emb": alaya.encode(state["obs"]),
             "act": state["action"],
             "rew": state["reward"],
             "ts": time.time(),
-            "imp": 0.8,  # Fixed importance (matches demo behavior)
+            "imp": DEFAULT_IMPORTANCE,
             "align": classification.align,
             "unc": state["unc"],
             "tag": seed_tag,
             "seed_type": classification.seed_type,
         }
     )
+    return state
+
+
+async def node_consolidate(state: YogacaraState) -> YogacaraState:
+    """
+    记忆巩固节点：每 N 步触发一次 ConsolidationEngine 整理。
+    整理包括：删除低质量种子（align < 0.20）、合并高度相似种子（align >= 0.70 同 tag）。
+    """
+    step = state["step"]
+    if step - alaya._last_consolidation_step >= CONSOLIDATION_INTERVAL:
+        report = alaya.consolidator.run(
+            alaya.seeds,
+            step=step,
+            dry_run=False,
+            verbose=False,
+        )
+        alaya._last_consolidation_step = step
+        if report.pruned_count > 0 or report.merged_count > 0:
+            alaya.batch_update(alaya.seeds)
+            logger.info(f"[Consolidation] {report.message}")
     return state
 
 
@@ -442,6 +506,7 @@ def build_graph() -> CompiledStateGraph[YogacaraState, None, YogacaraState]:
         ("manas", node_manas),
         ("execute", node_execute),
         ("store", node_store),
+        ("consolidate", node_consolidate),
     ]:
         wf.add_node(n, fn)
     wf.set_entry_point("perceive")
@@ -453,15 +518,34 @@ def build_graph() -> CompiledStateGraph[YogacaraState, None, YogacaraState]:
         ("introspect", "store"),
     ]:
         wf.add_edge(*e)
-    wf.add_conditional_edges("store", check_done, {"continue": "perceive", "end": END})
+    # store → consolidate → next loop（整理每 N 步才真正执行）
+    wf.add_conditional_edges("store", check_done, {"continue": "consolidate", "end": END})
+    wf.add_edge("consolidate", "perceive")
     return wf.compile()
 
 
 async def slow_loop(alaya_mem, interval=10):
-    """Background task for periodic memory consolidation."""
+    """Background task for periodic memory consolidation and metric computation."""
+    from yogacara_agent.compression_metrics import CompressionMetricsCalculator
+
+    metrics_calc = CompressionMetricsCalculator()
     while True:
         await asyncio.sleep(interval)
         alaya_mem.perfume_update()
+        # 计算压缩指标（记录到日志，供外部监控读取）
+        try:
+            metrics = metrics_calc.compute(
+                seeds=alaya_mem.seeds,
+                initial_tokens=0,
+                mirror_ratio=0.0,
+                ego_score=0.0,
+                misapprehension_ratio=0.0,
+                execution_rate=0.0,
+                verbose=False,
+            )
+            logger.debug(f"[Metrics] CQS={metrics.get('compression_quality_score', 0):.3f}")
+        except Exception:
+            logger.exception("[Metrics] 计算异常")
 
 
 async def main():
