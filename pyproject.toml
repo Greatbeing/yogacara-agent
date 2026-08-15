@@ -30,11 +30,13 @@ llm = ["openai>=1.0.0", "tenacity>=8.0.0", "transformers>=4.38.0", "peft>=0.9.0"
 memory = ["pymilvus>=2.3.0", "faiss-cpu>=1.7.4"]
 serve = ["ray[serve]>=2.9.0", "vllm>=0.3.0", "slowapi>=0.1.0"]
 plot = ["matplotlib>=3.7.0", "seaborn>=0.12.0", "pandas>=2.0.0", "tqdm>=4.65.0"]
-all = ["yogacara-agent[dev,llm,memory,serve,plot]"]
+desktop = ["pywebview>=5.0"]
+all = ["yogacara-agent[dev,llm,memory,serve,plot,desktop]"]
 
 [project.scripts]
 yogacara-run = "yogacara_agent.api_server:main"
 yogacara-exp = "yogacara_agent.exp_automator:main"
+yogacara-desktop = "desktop_app:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

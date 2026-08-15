@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>唯识进化框架 · Yogacara Agent Desktop</title>
+<style>
+  :root {
+    --bg: #0f1420; --panel: #171e2e; --panel2: #1d2538; --border: #2a3450;
+    --text: #dbe4f5; --muted: #7c8bb0; --accent: #4da3ff;
+    --good: #2ed573; --bad: #ff4757; --gold: #ffd700; --orange: #ff9f43;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: "Microsoft YaHei UI", "Segoe UI", sans-serif;
+    font-size: 13px; height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--panel);
+  }
+  header h1 { font-size: 15px; font-weight: 600; }
+  header .sub { color: var(--muted); font-size: 12px; }
+  #status-badge {
+    margin-left: auto; padding: 3px 12px; border-radius: 12px;
+    font-size: 12px; background: #2a3450; color: var(--muted);
+  }
+  #status-badge.run { background: rgba(46,213,115,.15); color: var(--good); }
+  #status-badge.paused { background: rgba(255,159,67,.15); color: var(--orange); }
+  #status-badge.done { background: rgba(77,163,255,.15); color: var(--accent); }
+
+  main { flex: 1; display: flex; gap: 12px; padding: 12px; min-height: 0; }
+
+  /* ── 网格世界 ── */
+  .world-panel {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px; display: flex; flex-direction: column; align-items: center; gap: 10px;
+  }
+  .world-title { color: var(--muted); font-size: 12px; }
+  #grid-wrap { position: relative; }
+  #grid {
+    display: grid; grid-template-columns: repeat(10, 36px); grid-template-rows: repeat(10, 36px);
+    gap: 2px; background: var(--border); border: 2px solid var(--border); border-radius: 6px;
+  }
+  .cell { background: #131a2b; position: relative; display: flex; align-items: center; justify-content: center; }
+  .cell.res { background: rgba(46,213,115,.12); }
+  .cell.trap { background: rgba(255,71,87,.10); }
+  .cell.path::after {
+    content: ""; width: 6px; height: 6px; border-radius: 50%;
+    background: rgba(77,163,255,.45); position: absolute;
+  }
+  #agent {
+    position: absolute; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
+    font-size: 20px; z-index: 5;
+    transition: transform .18s ease; pointer-events: none;
+    filter: drop-shadow(0 0 6px rgba(77,163,255,.8));
+  }
+  .legend { display: flex; gap: 14px; color: var(--muted); font-size: 12px; }
+  .legend span::before { margin-right: 4px; }
+
+  /* ── 右侧仪表盘 ── */
+  .dashboard { flex: 1; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .panel {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px;
+  }
+  .panel h3 { font-size: 12px; color: var(--muted); font-weight: 600; margin-bottom: 10px; letter-spacing: 1px; }
+  .wisdom-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .wcard { background: var(--panel2); border-radius: 8px; padding: 10px; text-align: center; }
+  .wcard .name { font-size: 12px; margin-bottom: 6px; }
+  .wcard .val { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+  .wcard .bar { height: 5px; background: #2a3450; border-radius: 3px; overflow: hidden; }
+  .wcard .bar i { display: block; height: 100%; border-radius: 3px; transition: width .3s; }
+  .wcard .st { font-size: 11px; margin-top: 5px; color: var(--muted); }
+  .wcard.ok .st { color: var(--good); }
+  .wcard.ng .st { color: var(--bad); }
+
+  .mem-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px; }
+  .mem-line { display: flex; align-items: center; gap: 8px; }
+  .mem-line .lbl { color: var(--muted); width: 88px; font-size: 12px; }
+  .mem-line .bar { flex: 1; height: 8px; background: #2a3450; border-radius: 4px; overflow: hidden; }
+  .mem-line .bar i { display: block; height: 100%; transition: width .3s; }
+  .mem-line .num { width: 52px; text-align: right; font-size: 12px; }
+  .stat-chips { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .chip { background: var(--panel2); border-radius: 6px; padding: 4px 10px; font-size: 12px; color: var(--muted); }
+  .chip b { color: var(--text); }
+
+  #spark { width: 100%; height: 56px; display: block; }
+
+  /* ── 控制栏 ── */
+  .controls {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px; background: var(--panel); border-top: 1px solid var(--border);
+  }
+  button {
+    background: var(--panel2); color: var(--text); border: 1px solid var(--border);
+    border-radius: 7px; padding: 7px 16px; font-size: 13px; cursor: pointer;
+    font-family: inherit; transition: all .15s;
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  button.primary { background: rgba(77,163,255,.18); border-color: var(--accent); color: var(--accent); }
+  .ctrl-sep { width: 1px; height: 22px; background: var(--border); }
+  .ctrl-group { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+  input[type=number] {
+    width: 62px; background: var(--panel2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-family: inherit;
+  }
+  input[type=range] { accent-color: var(--accent); width: 130px; }
+  #readout { margin-left: auto; color: var(--muted); font-size: 12px; }
+  #readout b { color: var(--text); font-size: 14px; }
+  #readout .pos-reward { color: var(--good); }
+  #readout .neg-reward { color: var(--bad); }
+
+  /* ── 日志 ── */
+  .log-panel { flex: 0 0 180px; display: flex; flex-direction: column; padding: 10px 16px; background: var(--panel); border-top: 1px solid var(--border); }
+  .log-panel h3 { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  #logs { flex: 1; overflow-y: auto; font-family: Consolas, monospace; font-size: 12px; line-height: 1.7; }
+  .log-row { display: flex; gap: 10px; white-space: nowrap; }
+  .log-row .st { color: var(--muted); width: 56px; }
+  .log-row .nature { width: 66px; font-weight: 600; }
+  .nature.依他起 { color: var(--accent); }
+  .nature.遍计所执 { color: var(--orange); }
+  .nature.圆成实 { color: var(--gold); }
+  .log-row .act { width: 48px; }
+  .log-row .rew { width: 60px; }
+  .rew.pos { color: var(--good); } .rew.neg { color: var(--bad); }
+  .log-row .unc { width: 66px; color: var(--muted); }
+  .log-row .note { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-thumb { background: #2a3450; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🪷 唯识进化框架</h1>
+  <span class="sub">Yogacara Agent Desktop · 八识认知架构</span>
+  <span id="status-badge">初始化…</span>
+</header>
+
+<main>
+  <div class="world-panel">
+    <div class="world-title">网格世界 GridSim · 前五识感知</div>
+    <div id="grid-wrap">
+      <div id="grid"></div>
+      <div id="agent">🧘</div>
+    </div>
+    <div class="legend">
+      <span>🧘 Agent</span><span style="color:var(--good)">💎 资源 +5</span><span style="color:var(--bad)">⚠️ 陷阱 -3</span><span style="color:var(--accent)">· 轨迹</span>
+    </div>
+  </div>
+
+  <div class="dashboard">
+    <div class="panel">
+      <h3>四智转依进度 · 转识成智</h3>
+      <div class="wisdom-row">
+        <div class="wcard" id="wc-mirror">
+          <div class="name">大圆镜智</div><div class="val">--</div>
+          <div class="bar"><i style="background:var(--gold)"></i></div><div class="st">--</div>
+        </div>
+        <div class="wcard" id="wc-equanimity">
+          <div class="name">平等性智</div><div class="val">--</div>
+          <div class="bar"><i style="background:var(--accent)"></i></div><div class="st">--</div>
+        </div>
+        <div class="wcard" id="wc-prajna">
+          <div class="name">妙观察智</div><div class="val">--</div>
+          <div class="bar"><i style="background:var(--good)"></i></div><div class="st">--</div>
+        </div>
+        <div class="wcard" id="wc-action">
+          <div class="name">成所作智</div><div class="val">--</div>
+          <div class="bar"><i style="background:var(--orange)"></i></div><div class="st">--</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>阿赖耶识 · 种子库仪表盘</h3>
+      <div class="mem-grid">
+        <div class="mem-line"><span class="lbl">名言种</span><div class="bar"><i id="bar-namarupa" style="background:var(--accent)"></i></div><span class="num" id="num-namarupa">0</span></div>
+        <div class="mem-line"><span class="lbl">平均重要性</span><div class="bar"><i id="bar-imp" style="background:var(--gold)"></i></div><span class="num" id="num-imp">0</span></div>
+        <div class="mem-line"><span class="lbl">业种</span><div class="bar"><i id="bar-karma" style="background:var(--good)"></i></div><span class="num" id="num-karma">0</span></div>
+        <div class="mem-line"><span class="lbl">平均align</span><div class="bar"><i id="bar-align" style="background:var(--accent)"></i></div><span class="num" id="num-align">0</span></div>
+        <div class="mem-line"><span class="lbl">异熟种</span><div class="bar"><i id="bar-vipaka" style="background:var(--orange)"></i></div><span class="num" id="num-vipaka">0</span></div>
+        <div class="mem-line"><span class="lbl">末那反思</span><div class="bar"><i id="bar-manas" style="background:var(--bad)"></i></div><span class="num" id="num-manas">0</span></div>
+      </div>
+      <div class="stat-chips">
+        <span class="chip">种子总数 <b id="chip-total">0</b></span>
+        <span class="chip">末那拦截 <b id="chip-intercept">0</b></span>
+        <span class="chip">我执分数 <b id="chip-ego">0</b></span>
+        <span class="chip">当前三性 <b id="chip-nature">--</b></span>
+      </div>
+    </div>
+
+    <div class="panel" style="flex:1">
+      <h3>累计奖励走势 · 果报曲线</h3>
+      <canvas id="spark"></canvas>
+    </div>
+  </div>
+</main>
+
+<div class="controls">
+  <button id="btn-start" class="primary">▶ 运行</button>
+  <button id="btn-pause">⏸ 暂停</button>
+  <button id="btn-step">⏭ 单步</button>
+  <button id="btn-reset">↺ 重置</button>
+  <div class="ctrl-sep"></div>
+  <div class="ctrl-group">速度 <input type="range" id="speed" min="0" max="1000" step="50" value="300"><span id="speed-val">300ms/步</span></div>
+  <div class="ctrl-sep"></div>
+  <div class="ctrl-group">步数上限 <input type="number" id="max-steps" min="1" max="200" value="60"></div>
+  <div id="readout">
+    步 <b id="ro-step">0</b>/<span id="ro-limit">60</span>
+    ｜ 奖励 <b id="ro-reward">0.00</b>
+    ｜ 动作 <b id="ro-action">--</b>
+    ｜ 不确定性 <b id="ro-unc">--</b>
+  </div>
+</div>
+
+<div class="log-panel">
+  <h3>内省日志流 · 自指环观察（第六识 introspection / 第七识 manas）</h3>
+  <div id="logs"></div>
+</div>
+
+<script>
+let api = null, polling = null, lastLogStep = -1, cumSeries = [];
+
+const $ = id => document.getElementById(id);
+
+/* ── 网格渲染 ── */
+function buildGrid() {
+  const g = $("grid");
+  g.innerHTML = "";
+  for (let i = 0; i < 100; i++) {
+    const c = document.createElement("div");
+    c.className = "cell"; c.dataset.idx = i;
+    g.appendChild(c);
+  }
+}
+function renderWorld(s) {
+  const cells = $("grid").children;
+  const resSet = new Set(s.resources.map(p => p[0] * 10 + p[1]));
+  const trapSet = new Set(s.traps.map(p => p[0] * 10 + p[1]));
+  const pathSet = new Set();
+  s.path.forEach(p => pathSet.add(p[0] * 10 + p[1]));
+  const agentIdx = s.pos[0] * 10 + s.pos[1];
+  for (let i = 0; i < 100; i++) {
+    const c = cells[i];
+    let cls = "cell";
+    if (resSet.has(i)) { cls += " res"; c.textContent = "💎"; }
+    else if (trapSet.has(i)) { cls += " trap"; c.textContent = "⚠️"; }
+    else { c.textContent = ""; if (pathSet.has(i) && i !== agentIdx) cls += " path"; }
+    c.className = cls;
+  }
+  // Agent 平滑移动（叠加层，单元格 36px + 间隙 2px）
+  const x = s.pos[1] * 38, y = s.pos[0] * 38;
+  $("agent").style.transform = `translate(${x}px, ${y}px)`;
+}
+
+/* ── 四智卡片 ── */
+function setCard(id, valText, pct, status, ok) {
+  const card = $(id);
+  card.querySelector(".val").textContent = valText;
+  card.querySelector(".bar i").style.width = Math.min(100, Math.max(0, pct * 100)) + "%";
+  const st = card.querySelector(".st");
+  st.textContent = status;
+  card.classList.toggle("ok", ok === true);
+  card.classList.toggle("ng", ok === false);
+}
+function renderWisdom(s) {
+  const r = (s.four_wisdom && s.four_wisdom.report) || {};
+  const m = s.four_wisdom ? s.four_wisdom.mirror_ratio : 0;
+  setCard("wc-mirror", (m * 100).toFixed(1) + "%", m,
+          (r["大圆镜智"] || {}).status || "--", m >= 0.6);
+  const eq = r["平等性智"] || {};
+  setCard("wc-equanimity", (eq.raw_long_term_ego ?? "--"),
+          1 - (eq.raw_long_term_ego || 1), eq.status || "--", eq.status === "达标");
+  const pj = r["妙观察智"] || {};
+  const pjr = typeof pj.ratio === "number" ? pj.ratio : 0;
+  setCard("wc-prajna", (pj.raw_prajna_ratio) || (pjr * 100).toFixed(0) + "%",
+          1 - pjr, pj.status || "--", pj.status === "达标");
+  const ac = r["成所作智"] || {};
+  const acs = typeof ac.score === "number" ? ac.score : null;
+  setCard("wc-action", acs !== null ? acs.toFixed(2) : "--",
+          acs !== null ? acs : 0, ac.status || "--", ac.status === "达标");
+}
+
+/* ── 记忆仪表盘 ── */
+function renderMemory(s) {
+  const total = Math.max(1, s.seeds_total);
+  const types = s.seed_types || {};
+  const setBar = (bid, nid, count, color) => {
+    $(bid).style.width = (count / total * 100) + "%";
+    $(nid).textContent = count;
+  };
+  setBar("bar-namarupa", "num-namarupa", types["名言种"] || 0);
+  setBar("bar-karma", "num-karma", types["业种"] || 0);
+  setBar("bar-vipaka", "num-vipaka", types["异熟种"] || 0);
+  $("bar-imp").style.width = (s.avg_imp * 100) + "%"; $("num-imp").textContent = s.avg_imp.toFixed(2);
+  $("bar-align").style.width = (s.avg_align * 100) + "%"; $("num-align").textContent = s.avg_align.toFixed(2);
+  const manasPct = Math.min(1, s.manas_reflections / Math.max(1, s.step));
+  $("bar-manas").style.width = (manasPct * 100) + "%"; $("num-manas").textContent = s.manas_reflections;
+  $("chip-total").textContent = s.seeds_total;
+  $("chip-intercept").textContent = s.manas_reflections;
+  $("chip-ego").textContent = s.ego_score;
+  $("chip-nature").textContent = s.nature;
+}
+
+/* ── 火花线 ── */
+function renderSpark(s) {
+  // 由 recent_rewards 重建累计曲线
+  cumSeries = [];
+  let acc = 0;
+  s.recent_rewards.forEach(r => { acc += r; cumSeries.push(acc); });
+  const cv = $("spark"), ctx = cv.getContext("2d");
+  cv.width = cv.offsetWidth * devicePixelRatio; cv.height = cv.offsetHeight * devicePixelRatio;
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+  const W = cv.offsetWidth, H = cv.offsetHeight;
+  ctx.clearRect(0, 0, W, H);
+  if (cumSeries.length < 2) {
+    ctx.fillStyle = "#7c8bb0"; ctx.font = "12px sans-serif";
+    ctx.fillText("运行后显示累计奖励走势…", 10, H / 2); return;
+  }
+  const min = Math.min(...cumSeries, 0), max = Math.max(...cumSeries, 0.1);
+  const x = i => 8 + i * (W - 16) / (cumSeries.length - 1);
+  const y = v => H - 8 - (v - min) / (max - min) * (H - 16);
+  // 零线
+  ctx.strokeStyle = "#2a3450"; ctx.beginPath();
+  ctx.moveTo(8, y(0)); ctx.lineTo(W - 8, y(0)); ctx.stroke();
+  // 曲线
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, "rgba(77,163,255,.35)"); grad.addColorStop(1, "rgba(77,163,255,0)");
+  ctx.beginPath(); ctx.moveTo(x(0), y(cumSeries[0]));
+  cumSeries.forEach((v, i) => ctx.lineTo(x(i), y(v)));
+  ctx.lineTo(x(cumSeries.length - 1), y(min)); ctx.lineTo(x(0), y(min)); ctx.closePath();
+  ctx.fillStyle = grad; ctx.fill();
+  ctx.beginPath(); ctx.moveTo(x(0), y(cumSeries[0]));
+  cumSeries.forEach((v, i) => ctx.lineTo(x(i), y(v)));
+  ctx.strokeStyle = "#4da3ff"; ctx.lineWidth = 1.6; ctx.stroke();
+}
+
+/* ── 日志流 ── */
+function renderLogs(s) {
+  const box = $("logs");
+  const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+  s.logs.forEach(l => {
+    if (l.step <= lastLogStep) return;
+    const row = document.createElement("div"); row.className = "log-row";
+    const rewCls = l.reward > 0 ? "pos" : (l.reward < 0 ? "neg" : "");
+    const note = [];
+    if (!l.manas_passed) note.push("末那拦截↩");
+    if (l.ego_triggered) note.push("我执⚠");
+    if (l.reasoning) note.push(l.reasoning.slice(0, 60));
+    row.innerHTML =
+      `<span class="st">Step ${String(l.step).padStart(2, "0")}</span>` +
+      `<span class="nature ${l.nature}">${l.nature}</span>` +
+      `<span class="act">${l.action}</span>` +
+      `<span class="rew ${rewCls}">${l.reward >= 0 ? "+" : ""}${l.reward.toFixed(1)}</span>` +
+      `<span class="unc">unc ${l.unc.toFixed(2)}</span>` +
+      `<span class="note">${note.join(" ｜ ")}</span>`;
+    box.appendChild(row);
+    lastLogStep = l.step;
+  });
+  while (box.children.length > 200) box.removeChild(box.firstChild);
+  if (nearBottom) box.scrollTop = box.scrollHeight;
+}
+
+/* ── 状态徽标 & 读数 ── */
+function renderStatus(s) {
+  const b = $("status-badge");
+  b.className = "";
+  if (s.done) { b.id = "status-badge"; b.classList.add("done"); b.textContent = "Episode 结束"; }
+  else if (s.paused) { b.classList.add("paused"); b.textContent = "已暂停"; }
+  else if (s.running) { b.classList.add("run"); b.textContent = "运行中"; }
+  else b.textContent = "空闲";
+  $("ro-step").textContent = s.step;
+  $("ro-limit").textContent = s.step_limit;
+  const r = $("ro-reward");
+  r.textContent = (s.cumulative_reward >= 0 ? "+" : "") + s.cumulative_reward.toFixed(2);
+  r.className = s.cumulative_reward >= 0 ? "pos-reward" : "neg-reward";
+  $("ro-action").textContent = s.action || "--";
+  $("ro-unc").textContent = s.unc != null ? s.unc.toFixed(2) : "--";
+}
+
+function renderAll(s) {
+  renderWorld(s); renderWisdom(s); renderMemory(s);
+  renderSpark(s); renderLogs(s); renderStatus(s);
+}
+
+/* ── 轮询与控制 ── */
+let busy = false;
+async function poll() {
+  if (!api || busy) return;
+  busy = true;
+  try { renderAll(await api.get_snapshot()); } catch (e) { /* 忽略瞬时错误 */ }
+  busy = false;
+}
+
+async function startRun() {
+  if (!api) return;
+  await api.start(parseInt($("max-steps").value) || 60, parseInt($("speed").value));
+}
+window.addEventListener("DOMContentLoaded", () => {
+  buildGrid();
+  window.pywebviewready.then(() => {
+    api = window.pywebview.api;
+    poll();
+    polling = setInterval(poll, 200);
+  });
+  $("btn-start").onclick = startRun;
+  $("btn-pause").onclick = () => api && api.pause();
+  $("btn-step").onclick = async () => { if (api) { await api.pause(); renderAll(await api.step_once()); } };
+  $("btn-reset").onclick = async () => {
+    if (!api) return;
+    lastLogStep = -1; $("logs").innerHTML = "";
+    renderAll(await api.reset());
+  };
+  $("speed").oninput = e => {
+    $("speed-val").textContent = e.target.value + "ms/步";
+    if (api && polling) api.start(null, parseInt(e.target.value)).catch(()=>{});
+  };
+});
+</script>
+</body>
+</html>
