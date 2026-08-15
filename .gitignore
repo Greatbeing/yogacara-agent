@@ -1,4 +1,3 @@
-```
 # Compiled and build artifacts
 *.pyc
 __pycache__/
@@ -26,6 +25,7 @@ coverage/
 
 # Logs and temp files
 *.log
+exp_results_*/
 *.tmp
 *.swp
 *.swo
@@ -66,4 +66,3 @@ Thumbs.db
 *.tar.bz2
 *.tar.xz
 *.tar.zst
-```
