@@ -150,10 +150,6 @@ class GridSimEnv:
 from yogacara_agent.alaya_persistent import PersistentAlayaMemory  # noqa: E402
 from yogacara_agent.vipaka_engine import VipakaEngine  # noqa: E402
 from yogacara_agent.consolidation_engine import ConsolidationEngine  # noqa: E402
-from yogacara_agent.constants import (
-    CONSOLIDATION_INTERVAL,
-    DEFAULT_IMPORTANCE,
-)
 
 
 class AlayaMemory(PersistentAlayaMemory):

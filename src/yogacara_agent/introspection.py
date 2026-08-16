@@ -11,7 +11,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from yogacara_agent.constants import RESOURCE_THRESHOLD, STEP_COST, STAY_BONUS
+from yogacara_agent.constants import RESOURCE_THRESHOLD
 
 
 @dataclass

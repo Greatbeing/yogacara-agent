@@ -219,13 +219,12 @@ class PersistentAlayaMemory:
     def _append_to_file(self, seed: dict) -> None:
         """追加单个种子到文件。"""
         try:
-            with self._lock:
-                with open(self.path, "a", encoding="utf-8") as f:
-                    # 将 emb 转为可序列化格式
-                    seed_copy = dict(seed)
-                    if isinstance(seed_copy.get("emb"), list):
-                        seed_copy["emb"] = json.dumps(seed_copy["emb"])
-                    f.write(json.dumps(seed_copy, ensure_ascii=False) + "\n")
+            with self._lock, open(self.path, "a", encoding="utf-8") as f:
+                # 将 emb 转为可序列化格式
+                seed_copy = dict(seed)
+                if isinstance(seed_copy.get("emb"), list):
+                    seed_copy["emb"] = json.dumps(seed_copy["emb"])
+                f.write(json.dumps(seed_copy, ensure_ascii=False) + "\n")
         except Exception:
             logger.exception("[Alaya] 保存失败")
 

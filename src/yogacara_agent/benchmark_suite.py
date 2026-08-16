@@ -68,7 +68,8 @@ class MetricAggregator:
             "resource_found_rate": round(resource_found_rate, 4),
             "manas_intercept_rate": round(float(combined.get("intercept_rate", pd.Series(dtype=float)).mean() or 0.0), 4),
             "avg_steps": round(float(combined["step"].mean()), 4),
-            "reward_per_step": round(float(combined["mean_reward"].mean() / max(1.0, combined["step"].mean())), 4),
+            # 每步收益 = 最大步处的累计均值 / 步数（均值除均值会低估长轮次贡献）
+            "reward_per_step": round(float(combined.loc[combined["step"].idxmax(), "mean_reward"]) / max(1.0, float(combined["step"].max())), 4),
             "wisdom": {},
         }
 

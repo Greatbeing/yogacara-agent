@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from time import time
 from typing import Any
 
+from yogacara_agent.constants import RESOURCE_THRESHOLD
 from yogacara_agent.yogacara_test import AlayaMemory, ConsciousnessPlanner, GridSimEnv, ManasController, Seed
 
 
@@ -61,7 +62,7 @@ class CollaborativeCoordinator:
             uncertainty=uncertainty,
             causal_tag="依他起" if reward >= 0 else "遍计所执",
         )
-        setattr(seed, "source_agent", agent_id)
+        seed.source_agent = agent_id
         self.alaya.add(seed)
 
     def run_episode(self, agent_id: str, max_steps: int = 60) -> dict[str, Any]:
@@ -82,7 +83,8 @@ class CollaborativeCoordinator:
             session.recent_rewards.append(reward)
             session.pos_history.append(next_obs["pos"])
             total_reward += reward
-            resources_found += 1 if reward > 0 else 0
+            # 资源判定与 exp_automator 一致：reward >= RESOURCE_THRESHOLD（STAY 奖励不算）
+            resources_found += 1 if reward >= RESOURCE_THRESHOLD else 0
             self._store_seed(agent_id, next_obs, final_action, reward, unc)
             obs = next_obs
             if done:
@@ -99,21 +101,36 @@ class CollaborativeCoordinator:
 
     def run_all(self, episodes_per_agent: int = 10, max_steps: int = 60) -> dict[str, Any]:
         per_agent: dict[str, dict[str, Any]] = {}
+        # 逐 episode 累计，增益用各 agent 的跨轮均值（而非只看最后一轮）
+        reward_sums: dict[str, float] = {}
+        resource_sums: dict[str, int] = {}
+        cross_sums: dict[str, int] = {}
         for idx in range(self.agent_count):
             agent_id = f"agent-{idx}"
             self.create_agent(agent_id)
-            result = None
+            last: dict[str, Any] | None = None
             for _ in range(episodes_per_agent):
-                result = self.run_episode(agent_id, max_steps=max_steps)
-            per_agent[agent_id] = result or {"agent_id": agent_id, "cumulative_reward": 0.0, "resources_found": 0, "cross_agent_seed_usage": 0}
+                last = self.run_episode(agent_id, max_steps=max_steps)
+                reward_sums[agent_id] = reward_sums.get(agent_id, 0.0) + last["cumulative_reward"]
+                resource_sums[agent_id] = resource_sums.get(agent_id, 0) + last["resources_found"]
+                cross_sums[agent_id] = cross_sums.get(agent_id, 0) + last["cross_agent_seed_usage"]
+            n = max(1, episodes_per_agent)
+            per_agent[agent_id] = {
+                "agent_id": agent_id,
+                "mean_reward": round(reward_sums.get(agent_id, 0.0) / n, 2),
+                "mean_resources": round(resource_sums.get(agent_id, 0) / n, 2),
+                "cross_agent_seed_usage": cross_sums.get(agent_id, 0),
+                "last_episode": last,
+            }
 
         seed_contribution: dict[str, int] = {}
         for seed in self.alaya.seeds:
             source = getattr(seed, "source_agent", "unknown")
             seed_contribution[source] = seed_contribution.get(source, 0) + 1
 
-        baseline_mean_reward = per_agent.get("agent-0", {}).get("cumulative_reward", 0.0)
-        collaboration_mean_reward = sum(v["cumulative_reward"] for v in per_agent.values()) / max(1, len(per_agent))
+        # 基线 = agent-0（先运行，未受他者种子影响）；均值用跨轮均值
+        baseline_mean_reward = per_agent.get("agent-0", {}).get("mean_reward", 0.0)
+        collaboration_mean_reward = sum(v["mean_reward"] for v in per_agent.values()) / max(1, len(per_agent))
         collaboration_gain = None
         if baseline_mean_reward != 0:
             collaboration_gain = (collaboration_mean_reward - baseline_mean_reward) / baseline_mean_reward

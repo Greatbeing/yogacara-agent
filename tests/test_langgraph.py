@@ -45,38 +45,44 @@ class TestGraphNodes:
             node_perceive,
         )
 
-        # 先添加一些种子到 alaya
-        obs = {"pos": (0, 0), "grid_view": [0.0] * 9, "step": 0}
-        emb = alaya.encode(obs)
-        alaya.add({"emb": emb, "act": "RIGHT", "rew": 5.0, "seed_type": "业种"})
+        # 密闭化：快照并清空种子库，避免依赖持久化文件的历史内容
+        # （此前检索 top-3 取决于文件中零距离种子的历史，跨运行不稳定）
+        saved_seeds = list(alaya.seeds)
+        alaya.seeds.clear()
+        try:
+            obs = {"pos": (0, 0), "grid_view": [0.0] * 9, "step": 0}
+            emb = alaya.encode(obs)
+            alaya.add({"emb": emb, "act": "RIGHT", "rew": 5.0, "seed_type": "业种"})
 
-        state = {
-            "obs": obs,
-            "action": "",
-            "reward": 0.0,
-            "done": False,
-            "step": 0,
-            "seeds": [],
-            "unc": 0.0,
-            "manas_passed": True,
-            "tool_calls": [],
-            "recent_rewards": [],
-            "pos_history": [],
-            "metrics": {},
-            "introspection_record": None,
-            "ego_alert": None,
-            "plan_scores": None,
-            "reasoning": "",
-            "steps_since_resource": 0,
-            "steps_at_same_pos": 0,
-            "step_limit": 60,
-        }
-        import asyncio
-        result = asyncio.run(node_perceive(state))
-        assert len(result["seeds"]) > 0, "Should retrieve seeds"
-        # 刚在当前位置(距离0)存入的 RIGHT 种子必然在检索结果中；
-        # 不断言首位——检索顺序取决于持久化文件中其他零距离种子的历史
-        assert any(s["act"] == "RIGHT" for s in result["seeds"])
+            state = {
+                "obs": obs,
+                "action": "",
+                "reward": 0.0,
+                "done": False,
+                "step": 0,
+                "seeds": [],
+                "unc": 0.0,
+                "manas_passed": True,
+                "tool_calls": [],
+                "recent_rewards": [],
+                "pos_history": [],
+                "metrics": {},
+                "introspection_record": None,
+                "ego_alert": None,
+                "plan_scores": None,
+                "reasoning": "",
+                "steps_since_resource": 0,
+                "steps_at_same_pos": 0,
+                "step_limit": 60,
+            }
+            import asyncio
+            result = asyncio.run(node_perceive(state))
+            assert len(result["seeds"]) > 0, "Should retrieve seeds"
+            # 空库 + 单个当前位置种子：检索结果第一位必为刚存入的 RIGHT
+            assert result["seeds"][0]["act"] == "RIGHT"
+        finally:
+            alaya.seeds[:] = saved_seeds
+            alaya.batch_update(alaya.seeds)  # 撤销 add() 的文件写入
 
     def test_node_execute_stuck_detection(self):
         """测试 node_execute 的 stuck 检测"""
