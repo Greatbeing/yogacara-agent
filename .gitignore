@@ -66,3 +66,7 @@ Thumbs.db
 *.tar.bz2
 *.tar.xz
 *.tar.zst
+
+# 运行时记忆数据（阿赖耶识种子库，本地生成）
+memory/
+src/memory/
