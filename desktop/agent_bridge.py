@@ -53,7 +53,9 @@ class AgentBridge:
         # 惰性初始化内省系统（node_introspect 依赖）
         ylg._get_introspection_logger()
 
-        self._lock = threading.Lock()
+        # RLock：step_once 持锁期间内部也调 get_snapshot（可重入）；
+        # UI 轮询线程的 get_snapshot 加同一把锁，避免读到节点执行到一半的 state
+        self._lock = threading.RLock()
         self.state: dict = _initial_state(max_steps)
         self.max_steps = max_steps
         self.speed_ms = speed_ms
@@ -175,6 +177,12 @@ class AgentBridge:
         self._go.clear()
         return {"status": "paused"}
 
+    def set_speed(self, speed_ms: int) -> dict:
+        """仅调节速度，不改变运行/暂停状态（供 UI 滑块实时调用）。"""
+        with self._lock:
+            self.speed_ms = max(0, int(speed_ms))
+        return {"status": "ok", "speed_ms": self.speed_ms}
+
     def resume(self) -> dict:
         self._go.set()
         if self.state["done"]:
@@ -209,7 +217,11 @@ class AgentBridge:
 
     # ── 状态快照 ────────────────────────────────────────────────────────
     def get_snapshot(self) -> dict[str, Any]:
-        """返回完整状态快照，供 UI 轮询。"""
+        """返回完整状态快照，供 UI 轮询。持锁读取，保证不跨半步。"""
+        with self._lock:
+            return self._build_snapshot()
+
+    def _build_snapshot(self) -> dict[str, Any]:
         s = self.state
         env = ylg.env
         alaya = ylg.alaya

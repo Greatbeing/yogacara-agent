@@ -405,7 +405,8 @@ function renderMemory(s) {
   setBar("bar-vipaka", "num-vipaka", types["异熟种"] || 0);
   $("bar-imp").style.width = (s.avg_imp * 100) + "%"; $("num-imp").textContent = s.avg_imp.toFixed(2);
   $("bar-align").style.width = (s.avg_align * 100) + "%"; $("num-align").textContent = s.avg_align.toFixed(2);
-  const manasPct = Math.min(1, s.manas_reflections / Math.max(1, s.step));
+  // 末那反思占比（episode 重置后 step=0 时显示 0，避免瞬时 100% 毛刺）
+  const manasPct = s.step > 0 ? Math.min(1, s.manas_reflections / s.step) : 0;
   $("bar-manas").style.width = (manasPct * 100) + "%"; $("num-manas").textContent = s.manas_reflections;
   $("chip-total").textContent = s.seeds_total;
   $("chip-intercept").textContent = s.manas_reflections;
@@ -573,7 +574,15 @@ window.addEventListener("DOMContentLoaded", () => {
     api = window.pywebview.api;
     poll();
     polling = setInterval(poll, 200);
-  });
+  }).catch(() => {});
+  // pywebview 桥接注入失败时给出可见提示（否则 UI 永远停在"初始化…"）
+  setTimeout(() => {
+    if (!api) {
+      const b = document.getElementById("status-badge");
+      b.textContent = "桥接初始化失败";
+      b.style.color = "var(--bad)";
+    }
+  }, 5000);
   $("btn-start").onclick = startRun;
   $("btn-pause").onclick = () => api && api.pause();
   $("btn-step").onclick = async () => { if (api) { await api.pause(); renderAll(await api.step_once()); } };
@@ -593,7 +602,8 @@ window.addEventListener("DOMContentLoaded", () => {
   $("seed-overlay").onclick = e => { if (e.target === $("seed-overlay")) toggleSeedOverlay(false); };
   $("speed").oninput = e => {
     $("speed-val").textContent = e.target.value + "ms/步";
-    if (api && polling) api.start(null, parseInt(e.target.value)).catch(()=>{});
+    // 仅调速：不触碰运行状态（此前误调 start()，空闲时拖滑块会意外启动 Agent）
+    if (api) api.set_speed(parseInt(e.target.value)).catch(()=>{});
   };
 });
 </script>

@@ -49,7 +49,7 @@ def main() -> int:
 
     bridge = AgentBridge(max_steps=60, speed_ms=300)
 
-    window = webview.create_window(
+    webview.create_window(
         title="唯识进化框架 · Yogacara Agent Desktop",
         url=f"file:///{HTML_PATH.replace(os.sep, '/')}",
         js_api=bridge,
@@ -65,9 +65,9 @@ def main() -> int:
         webview.start(debug=False, icon=ICON_PATH)
     else:
         webview.start(debug=False)
-    # 窗口关闭后收尾
+    # 窗口关闭后收尾（seeds_total 为阿赖耶识种子库总数，state["seeds"] 只是单步检索结果）
     bridge.stop()
-    print(f"[Desktop] 已退出 | 种子库保留 {len(bridge.state.get('seeds', []))} 条记忆")
+    print(f"[Desktop] 已退出 | 种子库保留 {bridge.get_snapshot()['seeds_total']} 条记忆")
     return 0
 
 

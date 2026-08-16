@@ -99,3 +99,25 @@ class TestAgentBridgeRunControl:
         assert len(seeds) == 3
         for s in seeds:
             assert "act" in s and "rew" in s and "seed_type" in s
+
+    def test_set_speed_does_not_change_run_state(self):
+        """调速不改变运行/暂停状态（修复：滑块误调 start 导致意外启动）"""
+        b = self._bridge()
+        # 空闲状态下调速 → 仍空闲，不拉起线程
+        b.set_speed(500)
+        assert b.speed_ms == 500
+        assert b.get_snapshot()["running"] is False
+        assert b._thread is None
+        # 暂停状态下调速 → 仍暂停
+        b.start(max_steps=50, speed_ms=10)
+        time.sleep(0.2)
+        b.pause()
+        time.sleep(0.05)
+        step_paused = b.get_snapshot()["step"]
+        b.set_speed(800)
+        time.sleep(0.15)
+        snap = b.get_snapshot()
+        assert snap["paused"] is True, "调速不应解除暂停"
+        assert snap["step"] == step_paused, "调速不应推进步数"
+        assert b.speed_ms == 800
+        b.stop()
