@@ -296,6 +296,7 @@
   <button id="btn-step">⏭ 单步</button>
   <button id="btn-reset">↺ 转世</button>
   <button id="btn-seeds">🌱 种子库</button>
+  <button id="btn-lives">♻ 轮回史</button>
   <div class="ctrl-sep"></div>
   <div class="ctrl-group">速度 <input type="range" id="speed" min="50" max="1000" step="50" value="300"><span id="speed-val">300ms/步</span></div>
   <div class="ctrl-sep"></div>
@@ -313,6 +314,32 @@
     <button id="btn-clear-logs" title="清空日志" style="margin-left:8px;padding:2px 8px;font-size:11px;border-radius:5px;">清空</button>
   </h3>
   <div id="logs"></div>
+</div>
+
+<!-- 轮回史浏览器覆盖层 -->
+<div id="lives-overlay" hidden>
+  <div class="seed-modal">
+    <div class="seed-modal-head">
+      <h3>♻ 轮回史 · 历代生命总结</h3>
+      <div>
+        <button id="btn-lives-refresh" style="font-size:12px;padding:4px 12px;">↻ 刷新</button>
+        <button id="btn-lives-close" style="font-size:12px;padding:4px 12px;">✕ 关闭</button>
+      </div>
+    </div>
+    <table class="seed-table">
+      <thead>
+        <tr><th>世数</th><th>步数</th><th>业力</th><th>死因</th><th>转依</th><th>贪</th><th>嗔</th><th>痴</th><th>梦种</th></tr>
+      </thead>
+      <tbody id="lives-tbody">
+        <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px;">尚无前世记录——命终后此处记载每一世</td></tr>
+      </tbody>
+    </table>
+    <div class="seed-legend">
+      <span>业力 = 一世累计奖励</span>
+      <span>死因：寿元耗尽（饿死）/ 寿量圆满 / 功德圆满</span>
+      <span>梦种 = 中阴梦境重组的种子数</span>
+    </div>
+  </div>
 </div>
 
 <!-- 种子库浏览器覆盖层 -->
@@ -342,7 +369,7 @@
 </div>
 
 <script>
-let api = null, polling = null, lastLogSeq = 0, cumSeries = [];
+let api = null, polling = null, lastLogSeq = 0, cumSeries = [], lastSnapshot = null;
 
 const $ = id => document.getElementById(id);
 
@@ -590,12 +617,50 @@ function toggleSeedOverlay(show) {
   if (show) loadSeeds();
 }
 
+/* ── 轮回史浏览器 ── */
+function loadLives() {
+  const tbody = $("lives-tbody");
+  if (!api) return;
+  tbody.innerHTML = "";
+  const lives = (lastSnapshot && lastSnapshot.life_history) || [];
+  if (!lives.length) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px;">尚无前世记录——命终后此处记载每一世</td></tr>';
+    return;
+  }
+  [...lives].reverse().forEach(life => {  // 新世在前
+    const tr = document.createElement("tr");
+    if (life.death_cause === "功德圆满") tr.className = "pure";
+    else if (life.death_cause === "寿元耗尽") tr.className = "defiled";
+    const cells = [
+      "第 " + life.lifetime + " 世", life.steps,
+      (life.reward >= 0 ? "+" : "") + life.reward,
+      life.death_cause,
+      typeof life.turning_level === "number" ? life.turning_level.toFixed(3) : "--",
+      (life.klesha && life.klesha.greed || 0).toFixed(2),
+      (life.klesha && life.klesha.aversion || 0).toFixed(2),
+      (life.klesha && life.klesha.delusion || 0).toFixed(2),
+      life.dream_seeds,
+    ];
+    cells.forEach(v => {
+      const td = document.createElement("td");
+      td.textContent = v;
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+}
+function toggleLivesOverlay(show) {
+  const ov = $("lives-overlay");
+  ov.hidden = !show;
+  if (show) loadLives();
+}
+
 /* ── 轮询与控制 ── */
 let busy = false;
 async function poll() {
   if (!api || busy) return;
   busy = true;
-  try { renderAll(await api.get_snapshot()); } catch (e) { /* 忽略瞬时错误 */ }
+  try { lastSnapshot = await api.get_snapshot(); renderAll(lastSnapshot); } catch (e) { /* 忽略瞬时错误 */ }
   busy = false;
 }
 
@@ -644,6 +709,10 @@ window.addEventListener("DOMContentLoaded", () => {
   $("btn-seeds-close").onclick = () => toggleSeedOverlay(false);
   $("btn-seeds-refresh").onclick = loadSeeds;
   $("seed-overlay").onclick = e => { if (e.target === $("seed-overlay")) toggleSeedOverlay(false); };
+  $("btn-lives").onclick = () => toggleLivesOverlay(true);
+  $("btn-lives-close").onclick = () => toggleLivesOverlay(false);
+  $("btn-lives-refresh").onclick = () => { poll(); setTimeout(loadLives, 250); };
+  $("lives-overlay").onclick = e => { if (e.target === $("lives-overlay")) toggleLivesOverlay(false); };
   $("speed").oninput = e => {
     $("speed-val").textContent = e.target.value + "ms/步";
     // 仅调速：不触碰运行状态（此前误调 start()，空闲时拖滑块会意外启动 Agent）

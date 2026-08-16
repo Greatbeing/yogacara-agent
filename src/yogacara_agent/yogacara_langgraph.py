@@ -224,11 +224,18 @@ _total_classified = 0  # Phase3: 总分类种子数
 # 一期生命 = 一个 episode；命终计 deaths，当下世数 = deaths + 1。
 # 阿赖耶识种子跨世延续（bridge.reset 保留种子库）——业力轮回。
 _samsara: dict = {"deaths": 0}
+_life_history: list[dict] = []  # 轮回史：每世一行的生命总结（上限 50 世）
+LIFE_HISTORY_MAX = 50
 
 
 def current_lifetime() -> int:
     """当下世数（第几世）。"""
     return _samsara["deaths"] + 1
+
+
+def get_life_history() -> list[dict]:
+    """轮回史（旧→新）。"""
+    return list(_life_history)
 
 
 def _note_death(cause: str) -> None:
@@ -443,11 +450,9 @@ def _run_death_dream(state: YogacaraState) -> list[dict]:
 
     觉醒引擎 run_dream_replay 返回 父本+子代全集（memory_seeds+new），
     此处只取真子代（tag=dream_generated）；单场上限 20——一场梦不应
-    比一生经验还多。子代补齐 emb 后入阿赖耶识，来世检索到的"直觉"
-    部分来自前世的梦。超出 MEMORY_CAPACITY 时按 ts 淘汰最旧（淡忘）。
+    比一生经验还多。子代补齐 emb 后入阿赖耶识（add() 自带容量守恒），
+    来世检索到的"直觉"部分来自前世的梦。
     """
-    from yogacara_agent.constants import MEMORY_CAPACITY
-
     if len(alaya.seeds) < 3:
         return []  # 经验不足，不足以成梦
     engine = _get_awakening_engine()
@@ -457,14 +462,9 @@ def _run_death_dream(state: YogacaraState) -> list[dict]:
     for child in children:
         if "emb" not in child:
             child["emb"] = alaya.encode(state["obs"])
-        alaya.add(child)  # add() 补齐 ts/imp/align/unc/tag/seed_type
+        alaya.add(child)  # add() 补齐字段并执行容量守恒（淡忘最旧）
         added.append(child)
-    # 容量守恒：淡忘最旧记忆（含本梦境前的膨胀存量）
-    if len(alaya.seeds) > MEMORY_CAPACITY:
-        alaya.seeds.sort(key=lambda s: s.get("ts", 0.0))
-        del alaya.seeds[: len(alaya.seeds) - MEMORY_CAPACITY]
     if added:
-        alaya.batch_update(alaya.seeds)
         logger.info(f"[梦境] 中阴梦境：重组一生经验 → {len(added)} 个梦中种子入识")
     return added
 
@@ -907,6 +907,23 @@ async def node_consolidate(state: YogacaraState) -> YogacaraState:
             state["turning_result"]["insights"].append(
                 f"[中阴梦境] 一生经验重组为 {dream_count} 个梦中种子，随识转世"
             )
+        # 轮回史：这一世的总结（多世进程对外的可观测记录）
+        _life_history.append(
+            {
+                "lifetime": current_lifetime() - 1,  # 刚终结的一世
+                "steps": state["step"],
+                "reward": round(sum(state["recent_rewards"]), 2),
+                "death_cause": state["death_cause"],
+                "turning_level": (state.get("turning_result") or {}).get("turning_level"),
+                "klesha": {
+                    kk: round(vv, 3) for kk, vv in (state.get("klesha") or {}).items()
+                },
+                "dream_seeds": dream_count,
+                "seeds_total": len(alaya.seeds),
+                "ts": time.time(),
+            }
+        )
+        del _life_history[: max(0, len(_life_history) - LIFE_HISTORY_MAX)]
     state["dream_seeds"] = dream_count
     return state
 

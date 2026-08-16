@@ -21,6 +21,8 @@ import time
 from contextlib import suppress
 from typing import Any
 
+from yogacara_agent.constants import MEMORY_CAPACITY
+
 logger = logging.getLogger(__name__)
 
 # 可选的向量存储
@@ -109,7 +111,7 @@ class PersistentAlayaMemory:
         return [s for _, s in scored[:k]]
 
     def add(self, seed: dict) -> None:
-        """添加种子并持久化。"""
+        """添加种子并持久化。超容量时淡忘最旧（ts 最小）的记忆。"""
         # 确保必要字段
         seed.setdefault("ts", time.time())
         seed.setdefault("imp", 0.8)
@@ -120,6 +122,8 @@ class PersistentAlayaMemory:
 
         with self._lock:
             self.seeds.append(seed)
+            # 容量守恒：藏识非无限，旧忆淡忘（此前从未执行，库会无界膨胀）
+            self._enforce_capacity()
 
             # 文件持久化
             if self.storage in ("file", "hybrid"):
@@ -128,6 +132,16 @@ class PersistentAlayaMemory:
             # 向量存储
             if self.storage in ("vector", "hybrid") and self._chroma_collection:
                 self._add_to_chroma(seed)
+
+    def _enforce_capacity(self) -> None:
+        """持有锁调用：超出 MEMORY_CAPACITY 时按 ts 淘汰最旧种子。"""
+        if len(self.seeds) <= MEMORY_CAPACITY:
+            return
+        self.seeds.sort(key=lambda s: s.get("ts", 0.0))
+        evicted = len(self.seeds) - MEMORY_CAPACITY
+        del self.seeds[:evicted]
+        if self.storage in ("file", "hybrid"):
+            self._save_all_to_file()  # 淘汰后全量重写，防止文件滞留已淡忘记忆
 
     def batch_update(self, seeds: list[dict]) -> None:
         """
@@ -212,6 +226,9 @@ class PersistentAlayaMemory:
                         self.seeds.append(seed)
                     except json.JSONDecodeError:
                         continue
+            # 加载即守恒：历史膨胀的文件读入后同样淡忘最旧
+            with self._lock:
+                self._enforce_capacity()
             logger.info(f"[Alaya] 从 {self.path} 加载了 {len(self.seeds)} 个种子")
         except Exception:
             logger.exception(f"[Alaya] 加载失败: {self.path}")

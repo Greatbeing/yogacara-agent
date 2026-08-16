@@ -324,6 +324,7 @@ class AgentBridge:
             },
             "lifetime": ylg.current_lifetime(),
             "dream_sessions": len(ylg._get_awakening_engine().dream_sessions),
+            "life_history": ylg.get_life_history()[-20:],
             # 日志（最近 60 条，新的在后）
             "logs": list(self.logs)[-60:],
         }

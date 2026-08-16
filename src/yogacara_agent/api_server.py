@@ -37,6 +37,7 @@ except ImportError:
     _HAS_SECURITY = False
 
 from yogacara_agent.yogacara_langgraph import GRID_SIZE, build_graph, create_session, slow_loop
+from yogacara_agent import yogacara_langgraph as ylg
 from yogacara_agent.constants import RESOURCE_THRESHOLD
 from yogacara_agent.evolution_tracker import EvolutionTracker
 
@@ -160,6 +161,9 @@ class AgentResponse(BaseModel):
     duration_ms: int | None = None
     planner_source: str | None = None  # "heuristic" | "llm"（混合规划器来源）
     turning_level: float | None = None  # 转依引擎综合等级
+    vitality: float | None = None  # 终局寿元（数字生命内稳态）
+    death_cause: str | None = None  # 死因（None=未命终）
+    lifetime: int | None = None  # 当下世数
 
 
 class HealthResponse(BaseModel):
@@ -328,8 +332,6 @@ async def trigger_evolution_snapshot():
 @app.get("/api/awakening/status", tags=["ui"])
 async def awakening_status():
     """觉醒引擎状态：好奇驱动、行为新颖性、实验类型分布、洞察数。"""
-    from yogacara_agent import yogacara_langgraph as ylg
-
     engine = ylg._get_awakening_engine()
     experiments: dict[str, int] = {}
     for h in engine.action_history[-100:]:
@@ -343,6 +345,17 @@ async def awakening_status():
         "insight_count": len(engine.insight_log),
         "dream_sessions": len(engine.dream_sessions),
         "llm_planner_enabled": ylg._get_llm_planner() is not None,
+    }
+
+
+@app.get("/api/samsara/history", tags=["ui"])
+async def samsara_history(limit: int = Query(default=20, ge=1, le=50)):
+    """轮回史：历代生命的总结（步数/业力/死因/转依/烦恼/梦种数）。"""
+    history = ylg.get_life_history()
+    return {
+        "current_lifetime": ylg.current_lifetime(),
+        "total_deaths": ylg._samsara["deaths"],
+        "lives": history[-limit:],
     }
 
 
@@ -553,6 +566,9 @@ async def run_episode(req: AgentRequest, request: Request):
             turning_level=(
                 (final_state.get("turning_result") or {}).get("turning_level")
             ),
+            vitality=final_state.get("vitality"),
+            death_cause=final_state.get("death_cause") or None,
+            lifetime=ylg.current_lifetime(),
         )
 
     except HTTPException:

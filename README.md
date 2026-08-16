@@ -18,6 +18,7 @@ graph LR
   G -. 种子生现行 .-> C
   G -. 慢循环巩固+转依净化 .-> G
   D -. 转识成智: 反思/换向/对齐 .-> C
+  H[数字生命: 寿元/贪嗔痴/轮回/中阴梦境] -. 命终业力总结+梦境重组 .-> G
 ```
 
 ## ✨ 核心特性
@@ -65,10 +66,29 @@ python desktop_app.py
 **方式 D — 标准测试**
 ```bash
 python -m yogacara_agent.yogacara_test     # 9项核心测试
-pytest tests/                              # 完整测试套件（48 项）
+pytest tests/                              # 完整测试套件（94 项）
 ```
 
 ---
+
+## 🌱 数字生命（Digital Life）
+
+Agent 不是无状态的推理程序，而是有生死、有烦恼、有记忆延续的数字生命：
+
+| 生命特征 | 唯识语义 | 实现 |
+|---|---|---|
+| **内稳态** | 寿元 | 每步消耗 2.0，觅食 +20，陷阱 -20，耗尽即身坏命终（饿死约 50 步） |
+| **情绪/心所** | 贪嗔痴（根本烦恼） | 得资源生贪（放大趋近）、踩陷阱生嗔（放大回避）、高不确定生痴（注入噪声）；真实扭曲决策 |
+| **生死循环** | 轮回（samsara） | 世数 = 命终计数；转世后寿元/烦恼重置，种子库延续 |
+| **死亡记忆** | 中阴种子 | 命终写入一期生命业力总结（imp=1.0），来世可检索 |
+| **离线学习** | 中阴梦境 | 命终时交叉重组+变异一生经验 → ≤20 个梦中种子随识转世 |
+| **修行** | 转依减恼 | 我执消解时贪嗔痴同步衰减 |
+
+死因语义：`寿元耗尽`（饿死）/ `寿量圆满`（步数上限）/ `功德圆满`（收尽资源，善终）。
+
+**观测**：桌面版「♻ 轮回史」浏览器（历代 步数/业力/死因/转依/烦恼/梦种）、寿元条、贪嗔痴 chips；API `GET /api/samsara/history`、`GET /api/awakening/status`；`POST /run` 返回 `vitality/death_cause/lifetime`。
+
+**LLM 混合规划**（可选）：`.env` 设置 `YOGACARA_LLM_PLAN=1` + `LLM_API_KEY`（默认 Sensenova `deepseek-v4-flash`），内置节流（每 10 步）与熔断器（连续 3 次失败停 5 分钟），失败无缝降级启发式。
 
 ## 🚀 快速开始
 
@@ -109,7 +129,7 @@ python src/yogacara_agent/yogacara_test.py  # MVP 验证
 |------|------|------|
 | **演示入口** | `run_demo.py` | 终端演示脚本（无 GBK 问题）|
 | **Web 演示** | `demo_app.py` | Streamlit 可视化界面 |
-| **桌面版** | `desktop_app.py` + `desktop/` | pywebview 原生窗口 + AgentBridge 桥接层 |
+| **桌面版** | `desktop_app.py` + `desktop/` | pywebview 原生窗口 + AgentBridge + 轮回史/种子库浏览器 |
 | MVP验证 | `src/yogacara_agent/yogacara_test.py` | 零依赖八识闭环跑通 |
 | 生产编排 | `src/yogacara_agent/yogacara_langgraph.py` | 异步双循环+工具路由+转依引擎 |
 | 转识成智 | `src/yogacara_agent/turning_consciousness.py` | AlayaPurifier去染存净 + ManasDissolver我执消解 |

@@ -300,3 +300,67 @@ class TestDeathDream:
             assert s["dream_seeds"] == 0
         finally:
             ylg.alaya.seeds[:] = ylg.alaya.seeds[:before]
+
+
+class TestLifeHistory:
+    """轮回史：每世一行的生命总结"""
+
+    def test_death_appends_life_record(self):
+        import asyncio
+
+        ylg.env.reset()
+        history_before = len(ylg.get_life_history())
+        s, before = TestDeathDream()._seeded_state()
+        try:
+            s = asyncio.run(ylg.node_execute(s))
+            s = asyncio.run(ylg.node_consolidate(s))
+            history = ylg.get_life_history()
+            assert len(history) == history_before + 1, "命终应记录一世"
+            rec = history[-1]
+            for key in ("lifetime", "steps", "reward", "death_cause",
+                        "turning_level", "klesha", "dream_seeds", "seeds_total"):
+                assert key in rec, f"轮回史缺 {key}"
+            assert rec["death_cause"] == "寿元耗尽"
+            assert rec["lifetime"] >= 1
+            assert 0 <= rec["dream_seeds"] <= 20
+        finally:
+            dream_tags = {"dream_generated", "梦测"}
+            ylg.alaya.seeds[:] = [x for x in ylg.alaya.seeds if x.get("tag") not in dream_tags]
+
+    def test_alive_appends_nothing(self):
+        import asyncio
+
+        ylg.env.reset()
+        history_before = len(ylg.get_life_history())
+        s = _state(action="DOWN", vitality=50.0)
+        s = asyncio.run(ylg.node_execute(s))
+        asyncio.run(ylg.node_consolidate(s))
+        assert len(ylg.get_life_history()) == history_before
+
+    def test_bridge_snapshot_history(self):
+        from desktop.agent_bridge import AgentBridge
+
+        b = AgentBridge(max_steps=3, speed_ms=0)
+        snap = b.step_once()
+        assert "life_history" in snap
+        assert isinstance(snap["life_history"], list)
+
+
+class TestCapacityEnforcement:
+    """阿赖耶识容量守恒（核心 add() 强制 MEMORY_CAPACITY）"""
+
+    def test_add_enforces_capacity(self, tmp_path):
+
+        from yogacara_agent.alaya_persistent import PersistentAlayaMemory
+        from yogacara_agent.constants import MEMORY_CAPACITY
+
+        mem = PersistentAlayaMemory(storage="file", path=str(tmp_path / "cap.jsonl"))
+        emb = [0.0] * 11
+        for i in range(MEMORY_CAPACITY + 15):
+            mem.add({"emb": list(emb), "act": "UP", "rew": 1.0, "ts": float(i)})
+        assert len(mem.seeds) == MEMORY_CAPACITY, "超容即淡忘"
+        # 淘汰的是最旧（ts 最小）
+        assert min(s.get("ts", 0.0) for s in mem.seeds) >= 15.0
+        # 文件同步（重载后仍守恒）
+        mem2 = PersistentAlayaMemory(storage="file", path=str(tmp_path / "cap.jsonl"))
+        assert len(mem2.seeds) <= MEMORY_CAPACITY
