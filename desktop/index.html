@@ -137,6 +137,31 @@
   .log-row .note { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
   ::-webkit-scrollbar { width: 8px; height: 8px; }
   ::-webkit-scrollbar-thumb { background: #2a3450; border-radius: 4px; }
+
+  /* ── 种子库浏览器 ── */
+  #seed-overlay {
+    position: fixed; inset: 0; z-index: 100;
+    background: rgba(5, 8, 16, .72); backdrop-filter: blur(2px);
+    display: flex; align-items: center; justify-content: center;
+  }
+  #seed-overlay[hidden] { display: none; }
+  .seed-modal {
+    width: 640px; max-height: 78vh; display: flex; flex-direction: column;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px 18px; box-shadow: 0 12px 48px rgba(0,0,0,.5);
+  }
+  .seed-modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .seed-modal-head h3 { font-size: 13px; color: var(--text); }
+  .seed-table { width: 100%; border-collapse: collapse; font-size: 12px; overflow-y: auto; }
+  .seed-table th {
+    text-align: left; color: var(--muted); font-weight: 600;
+    padding: 6px 8px; border-bottom: 1px solid var(--border); position: sticky; top: 0;
+    background: var(--panel);
+  }
+  .seed-table td { padding: 5px 8px; border-bottom: 1px solid rgba(42,52,80,.4); }
+  .seed-table tr.defiled td { color: var(--bad); }
+  .seed-table tr.pure td { color: var(--good); }
+  .seed-legend { display: flex; gap: 16px; margin-top: 10px; font-size: 11px; }
 </style>
 </head>
 <body>
@@ -229,6 +254,7 @@
         <span class="chip">末那拦截 <b id="chip-intercept">0</b></span>
         <span class="chip">我执分数 <b id="chip-ego">0</b></span>
         <span class="chip">当前三性 <b id="chip-nature">--</b></span>
+        <span class="chip" title="转识成智综合等级（镜/平/观/作 加权）">转依等级 <b id="chip-turning">--</b></span>
       </div>
     </div>
 
@@ -244,6 +270,7 @@
   <button id="btn-pause">⏸ 暂停</button>
   <button id="btn-step">⏭ 单步</button>
   <button id="btn-reset">↺ 重置</button>
+  <button id="btn-seeds">🌱 种子库</button>
   <div class="ctrl-sep"></div>
   <div class="ctrl-group">速度 <input type="range" id="speed" min="50" max="1000" step="50" value="300"><span id="speed-val">300ms/步</span></div>
   <div class="ctrl-sep"></div>
@@ -263,8 +290,34 @@
   <div id="logs"></div>
 </div>
 
+<!-- 种子库浏览器覆盖层 -->
+<div id="seed-overlay" hidden>
+  <div class="seed-modal">
+    <div class="seed-modal-head">
+      <h3>🌱 阿赖耶识种子库 · 最近 30 条</h3>
+      <div>
+        <button id="btn-seeds-refresh" style="font-size:12px;padding:4px 12px;">↻ 刷新</button>
+        <button id="btn-seeds-close" style="font-size:12px;padding:4px 12px;">✕ 关闭</button>
+      </div>
+    </div>
+    <table class="seed-table">
+      <thead>
+        <tr><th>动作</th><th>奖励</th><th>重要性</th><th>对齐度</th><th>类型</th><th>标签</th></tr>
+      </thead>
+      <tbody id="seed-tbody">
+        <tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px;">加载中…</td></tr>
+      </tbody>
+    </table>
+    <div class="seed-legend">
+      <span style="color:var(--good)">■ 对齐 ≥ 0.7（净种）</span>
+      <span style="color:var(--muted)">■ 0.3 ~ 0.7（有覆种）</span>
+      <span style="color:var(--bad)">■ &lt; 0.3（染污种，转依时净化）</span>
+    </div>
+  </div>
+</div>
+
 <script>
-let api = null, polling = null, lastLogStep = -1, cumSeries = [];
+let api = null, polling = null, lastLogSeq = 0, cumSeries = [];
 
 const $ = id => document.getElementById(id);
 
@@ -354,6 +407,8 @@ function renderMemory(s) {
   $("chip-intercept").textContent = s.manas_reflections;
   $("chip-ego").textContent = s.ego_score;
   $("chip-nature").textContent = s.nature;
+  const t = s.turning || {};
+  $("chip-turning").textContent = typeof t.turning_level === "number" ? t.turning_level.toFixed(3) : "--";
 }
 
 /* ── 火花线（数据未变化时跳过重绘，避免每 200ms 重建 canvas） ── */
@@ -404,7 +459,9 @@ function renderLogs(s) {
     return el;
   };
   s.logs.forEach(l => {
-    if (l.step <= lastLogStep) return;
+    const lseq = l.seq || (l.step * 1000);  // 兼容无 seq 的旧条目
+    if (lseq <= lastLogSeq) return;
+    lastLogSeq = lseq;
     const row = document.createElement("div");
     row.className = "log-row";
     row.appendChild(mk("st", "Step " + String(l.step).padStart(2, "0")));
@@ -421,7 +478,6 @@ function renderLogs(s) {
     if (l.reasoning) note.push(String(l.reasoning).slice(0, 60));
     row.appendChild(mk("note", note.join(" ｜ ")));
     box.appendChild(row);
-    lastLogStep = l.step;
   });
   while (box.children.length > 200) box.removeChild(box.firstChild);
   if (nearBottom) box.scrollTop = box.scrollHeight;
@@ -447,6 +503,39 @@ function renderStatus(s) {
 function renderAll(s) {
   renderWorld(s); renderWisdom(s); renderMemory(s);
   renderSpark(s); renderLogs(s); renderStatus(s); renderButtons(s);
+}
+
+/* ── 种子库浏览器 ── */
+async function loadSeeds() {
+  if (!api) return;
+  const tbody = $("seed-tbody");
+  tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px;">加载中…</td></tr>';
+  try {
+    const seeds = await api.get_seeds(30);
+    tbody.innerHTML = "";
+    if (!seeds.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px;">种子库为空——运行后逐步熏习</td></tr>';
+      return;
+    }
+    seeds.forEach(sd => {
+      const tr = document.createElement("tr");
+      if (sd.align < 0.3) tr.className = "defiled";
+      else if (sd.align >= 0.7) tr.className = "pure";
+      [sd.act, sd.rew, sd.imp, sd.align, sd.seed_type, sd.tag].forEach(v => {
+        const td = document.createElement("td");
+        td.textContent = typeof v === "number" ? v.toFixed(2) : (v || "--");
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+  } catch (e) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--bad);padding:20px;">加载失败</td></tr>';
+  }
+}
+function toggleSeedOverlay(show) {
+  const ov = $("seed-overlay");
+  ov.hidden = !show;
+  if (show) loadSeeds();
 }
 
 /* ── 轮询与控制 ── */
@@ -483,14 +572,18 @@ window.addEventListener("DOMContentLoaded", () => {
   $("btn-step").onclick = async () => { if (api) { await api.pause(); renderAll(await api.step_once()); } };
   $("btn-reset").onclick = async () => {
     if (!api) return;
-    lastLogStep = -1; $("logs").innerHTML = "";
+    lastLogSeq = 0; $("logs").innerHTML = "";
     lastSparkKey = "";
     renderAll(await api.reset());
   };
   $("btn-clear-logs").onclick = () => {
-    lastLogStep = -1;
+    lastLogSeq = 0;
     $("logs").innerHTML = "";
   };
+  $("btn-seeds").onclick = () => toggleSeedOverlay(true);
+  $("btn-seeds-close").onclick = () => toggleSeedOverlay(false);
+  $("btn-seeds-refresh").onclick = loadSeeds;
+  $("seed-overlay").onclick = e => { if (e.target === $("seed-overlay")) toggleSeedOverlay(false); };
   $("speed").oninput = e => {
     $("speed-val").textContent = e.target.value + "ms/步";
     if (api && polling) api.start(null, parseInt(e.target.value)).catch(()=>{});

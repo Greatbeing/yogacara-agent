@@ -480,6 +480,7 @@ async def run_episode(req: AgentRequest, request: Request):
                 "steps_since_resource": 0,
                 "steps_at_same_pos": 0,
                 "step_limit": step_limit,
+                "turning_result": None,
             }
 
             final_state = await _get_graph().ainvoke(init_state)

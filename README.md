@@ -16,7 +16,7 @@ graph LR
   E --> F[反馈流: Reward/评价/自检]
   F --> G(第八识: 阿赖耶记忆/种子库/在线熏习)
   G -. 种子生现行 .-> C
-  G -. 慢循环巩固 .-> G
+  G -. 慢循环巩固+转依净化 .-> G
   D -. 转识成智: 反思/换向/对齐 .-> C
 ```
 
@@ -51,10 +51,21 @@ python run_demo.py --max-steps 20         # 短跑（20步）
 - ASCII 网格 + 实时评分
 - 四智近似指标输出
 
-**方式 C — 标准测试**
+**方式 C — Windows 桌面版（原生窗口）**
+```bash
+pip install pywebview
+python desktop_app.py
+```
+- 原生窗口（WebView2）+ 莲花 Logo + 窗口图标
+- 10×10 网格世界实时可视化（Agent/资源/陷阱/轨迹）
+- 运行控制面板（运行/暂停/单步/重置 + 速度调节 + 步数上限）
+- 四智转依仪表盘 + 转依等级 + 内省日志流（三性着色）
+- 🌱 种子库浏览器（染污种/有覆种/净种分色）
+
+**方式 D — 标准测试**
 ```bash
 python -m yogacara_agent.yogacara_test     # 9项核心测试
-pytest tests/                              # 完整测试套件
+pytest tests/                              # 完整测试套件（48 项）
 ```
 
 ---
@@ -75,7 +86,7 @@ export LLM_MODEL="deepseek-chat"
 pip install openai langgraph langchain-core fastapi python-dotenv
 
 # 运行测试
-python src/yogacara_test.py
+python src/yogacara_agent/yogacara_test.py
 ```
 
 **优势**：
@@ -91,21 +102,31 @@ python src/yogacara_test.py
 git clone https://github.com/Greatbeing/yogacara-agent.git
 cd yogacara-agent
 pip install -e ".[all]"  # 包含 transformers, vllm, peft 等
-python src/yogacara_test.py  # MVP 验证
+python src/yogacara_agent/yogacara_test.py  # MVP 验证
 ```
 ## 📦 模块说明
 | 模块 | 路径 | 功能 |
 |------|------|------|
 | **演示入口** | `run_demo.py` | 终端演示脚本（无 GBK 问题）|
 | **Web 演示** | `demo_app.py` | Streamlit 可视化界面 |
-| MVP验证 | `src/yogacara_test.py` | 零依赖八识闭环跑通 |
-| 生产编排 | `src/yogacara_langgraph.py` | 异步双循环+工具路由 |
-| LLM接入 | `src/llm_planner.py` | Qwen/Llama结构化输出+降级 |
-| 记忆持久化 | `src/milvus_memory.py` | HNSW索引/元数据过滤/批量熏习 |
-| 在线对齐 | `src/online_alignment.py` | DPO+LoRA+EWC防遗忘 |
-| 安全加固 | `src/security/` | 注入防御/沙箱/限流/记忆守卫 |
-| 数字孪生 | `src/env_adapters/` | ROS2/Unity/Isaac统一接口 |
-| 实验自动化 | `src/exp_automator.py` | 多轮并行/置信区间/论文图表 |
+| **桌面版** | `desktop_app.py` + `desktop/` | pywebview 原生窗口 + AgentBridge 桥接层 |
+| MVP验证 | `src/yogacara_agent/yogacara_test.py` | 零依赖八识闭环跑通 |
+| 生产编排 | `src/yogacara_agent/yogacara_langgraph.py` | 异步双循环+工具路由+转依引擎 |
+| 转识成智 | `src/yogacara_agent/turning_consciousness.py` | AlayaPurifier去染存净 + ManasDissolver我执消解 |
+| 内省系统 | `src/yogacara_agent/introspection.py` | 自指环结构化记录（成所作智数据源）|
+| 我执监测 | `src/yogacara_agent/ego_monitor.py` | 末那元认知 + 四智量化报告 |
+| 种子分类 | `src/yogacara_agent/seed_classifier.py` | 三性判别 → 名言/业/异熟种分类 |
+| 熏习反馈 | `src/yogacara_agent/vipaka_engine.py` | 异熟反馈循环（reward→align 熏习）|
+| 记忆整理 | `src/yogacara_agent/consolidation_engine.py` | 低质种子修剪 + 相似种子合并 |
+| 压缩指标 | `src/yogacara_agent/compression_metrics.py` | CQS 压缩质量评分 |
+| 记忆持久化 | `src/yogacara_agent/alaya_persistent.py` | JSONL原子写入 + 向量检索 |
+| 觉醒引擎 | `src/yogacara_agent/awakening_engine.py` | 渐进式觉醒阶段推进 |
+| LLM接入 | `src/yogacara_agent/llm_planner.py` | Sensenova/DeepSeek结构化输出+降级 |
+| API 服务 | `src/yogacara_agent/api_server.py` | FastAPI REST 接口 + 限流 + CORS |
+| 在线对齐 | `src/yogacara_agent/online_alignment.py` | DPO+LoRA+EWC防遗忘 |
+| 安全加固 | `src/yogacara_agent/security/` | 注入防御/沙箱/限流/记忆守卫 |
+| 数字孪生 | `src/yogacara_agent/env_adapters/` | ROS2/Unity/Isaac统一接口 |
+| 实验自动化 | `src/yogacara_agent/exp_automator.py` | 多轮并行/置信区间/论文图表 |
 | 云原生部署 | `k8s/`, `helm/` | HPA扩缩容/ConfigMap热更/Ray拓扑 |
 
 ## 📖 详细文档
@@ -113,6 +134,8 @@ python src/yogacara_test.py  # MVP 验证
 - [安全规范](docs/SECURITY.md)
 - [实验手册](docs/EXPERIMENTS.md)
 - [转识成智架构设计](docs/TRANSFORMATION_DESIGN.md)
+- [转依引擎设计](docs/TURNING_CONSCIOUSNESS.md)
+- [觉醒引擎设计](docs/AWAKENING_ENGINE.md)
 
 ## 🤝 贡献指南
 详见 [CONTRIBUTING.md](CONTRIBUTING.md)

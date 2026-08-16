@@ -40,6 +40,7 @@ def _initial_state(max_steps: int = 60) -> dict:
         "steps_since_resource": 0,
         "steps_at_same_pos": 0,
         "step_limit": max_steps,
+        "turning_result": None,
     }
 
 
@@ -62,6 +63,7 @@ class AgentBridge:
 
         self.logs: deque[dict] = deque(maxlen=500)
         self._cum_reward: float = 0.0  # 累计奖励缓存（O(1) 查询，避免 sum(recent_rewards)）
+        self._log_seq: int = 0  # 日志全局序号（同一步可产生多条：主记录 + 转依洞察）
 
     # ── 节点循环 ────────────────────────────────────────────────────────
     async def _cycle(self, state: dict) -> dict:
@@ -88,8 +90,10 @@ class AgentBridge:
         s = self.state
         int_rec = s.get("introspection_record") or {}
         ego_alert = s.get("ego_alert") or {}
+        self._log_seq += 1
         self.logs.append(
             {
+                "seq": self._log_seq,
                 "step": s["step"],
                 "nature": int_rec.get("nature", "依他起"),
                 "action": s["action"],
@@ -101,6 +105,24 @@ class AgentBridge:
                 "reasoning": int_rec.get("reasoning", ""),
             }
         )
+        # 转依洞察单独成行（金色高亮，三性标记为"圆成实"）
+        turning = s.get("turning_result") or {}
+        for insight in turning.get("insights", []):
+            self._log_seq += 1
+            self.logs.append(
+                {
+                    "seq": self._log_seq,
+                    "step": s["step"],
+                    "nature": "圆成实",
+                    "action": "转依",
+                    "reward": 0.0,
+                    "unc": 0.0,
+                    "manas_passed": True,
+                    "ego_score": 0.0,
+                    "ego_triggered": False,
+                    "reasoning": insight,
+                }
+            )
 
     # ── 连续运行控制 ────────────────────────────────────────────────────
     def start(self, max_steps: int | None = None, speed_ms: int | None = None) -> dict:
@@ -231,6 +253,8 @@ class AgentBridge:
                 "mirror_ratio": round(mirror_ratio, 3),
                 "report": _jsonable(wisdom_report),
             },
+            # 转依引擎输出
+            "turning": s.get("turning_result") or {},
             # 日志（最近 60 条，新的在后）
             "logs": list(self.logs)[-60:],
         }

@@ -74,7 +74,9 @@ class TestGraphNodes:
         import asyncio
         result = asyncio.run(node_perceive(state))
         assert len(result["seeds"]) > 0, "Should retrieve seeds"
-        assert result["seeds"][0]["act"] == "RIGHT"
+        # 刚在当前位置(距离0)存入的 RIGHT 种子必然在检索结果中；
+        # 不断言首位——检索顺序取决于持久化文件中其他零距离种子的历史
+        assert any(s["act"] == "RIGHT" for s in result["seeds"])
 
     def test_node_execute_stuck_detection(self):
         """测试 node_execute 的 stuck 检测"""

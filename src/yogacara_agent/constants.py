@@ -69,3 +69,8 @@ KARMA_NEUTRAL_WITH_EGO = 0.55          # 中性有我执
 
 # 圆成实
 PARINISPANNA_ALIGN = 0.7               # 圆成实种子所需最小 align
+
+# ── 转依（Turning Consciousness）────────────────────────────────────────
+TURNING_PURITY_THRESHOLD = 0.40  # clarity < 此值的种子被净化移除
+TURNING_EGO_DECAY_RATE = 0.15    # 每步我执消解系数
+VIPAKA_FUNCTIONAL_CLARITY = 0.75 # 异熟种功能清晰度（align 低是设计，非染污）

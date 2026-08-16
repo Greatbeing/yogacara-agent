@@ -73,6 +73,7 @@ class YogacaraState(TypedDict):
     steps_since_resource: int  # 探索力重置计数器
     steps_at_same_pos: int  # 连续停留计数器（正确实现is_stuck检测）
     step_limit: int  # 单次 episode 步数上限（API max_steps 注入）
+    turning_result: dict | None  # 转依引擎输出（四智等级+净化计数+洞察）
 
 
 class _IntrospectionRecordData(TypedDict):
@@ -231,6 +232,70 @@ def _get_ego_monitor():
     if ego_monitor is None:
         _get_introspection_logger()
     return ego_monitor
+
+
+# ── 转依引擎（Turning Consciousness）────────────────────────────────────
+_turning_engine = None  # lazy init 避免循环导入
+
+
+def _get_turning_engine():
+    global _turning_engine
+    if _turning_engine is None:
+        from yogacara_agent.turning_consciousness import TurningConsciousnessEngine
+        from yogacara_agent.constants import TURNING_PURITY_THRESHOLD, TURNING_EGO_DECAY_RATE
+
+        _turning_engine = TurningConsciousnessEngine(
+            {
+                "purity_threshold": TURNING_PURITY_THRESHOLD,
+                "ego_decay_rate": TURNING_EGO_DECAY_RATE,
+            }
+        )
+    return _turning_engine
+
+
+def _to_turning_seeds(seeds: list[dict]) -> tuple[list, list[int]]:
+    """alaya dict 种子 → 转依引擎 Seed 对象（带原索引映射，净化后可回写）。
+
+    is_defiled ← tag 含"遍计"（遍计所执 = 染污：虚妄分别的记忆）
+    clarity    ← 异熟种取功能清晰度（模式追踪器，align 低是设计而非染污），
+                 其余种子取 align（对齐度即清晰度代理）
+    """
+    from yogacara_agent.turning_consciousness import Seed
+    from yogacara_agent.constants import VIPAKA_FUNCTIONAL_CLARITY
+
+    out, indices = [], []
+    for i, s in enumerate(seeds):
+        is_vipaka = s.get("seed_type") == "异熟种"
+        out.append(
+            Seed(
+                content=f"{s.get('act', '?')}->{s.get('rew', 0)}",
+                is_defiled="遍计" in s.get("tag", ""),
+                affinity=0.0,  # purifier 中为 stub
+                clarity=VIPAKA_FUNCTIONAL_CLARITY if is_vipaka else s.get("align", 0.5),
+            )
+        )
+        indices.append(i)
+    return out, indices
+
+
+def _softmax_scores(scores: dict[str, float], temperature: float = 1.0) -> dict[str, float]:
+    """plan_scores（可为负的原始启发式分数）→ softmax 概率分布。"""
+    import math
+
+    if not scores:
+        return {}
+    mx = max(scores.values())
+    exps = {a: math.exp((v - mx) / temperature) for a, v in scores.items()}
+    total = sum(exps.values())
+    return {a: e / total for a, e in exps.items()}
+
+
+def _reward_context_of(state: YogacaraState) -> str:
+    """构造 ManasDissolver 的 reward_context 字符串（子串 'self' 触发我执消解）。"""
+    ego_alert = state.get("ego_alert") or {}
+    if ego_alert.get("triggered"):
+        return "self_centered_reward"
+    return "benefit_all_beings"
 
 
 def create_session() -> dict:
@@ -477,6 +542,7 @@ async def node_consolidate(state: YogacaraState) -> YogacaraState:
     """
     记忆巩固节点：每 N 步触发一次 ConsolidationEngine 整理。
     整理包括：删除低质量种子（align < 0.20）、合并高度相似种子（align >= 0.70 同 tag）。
+    每步执行转依引擎（去染存净 + 我执消解），结果写入 state["turning_result"]。
     """
     step = state["step"]
     if step - alaya._last_consolidation_step >= CONSOLIDATION_INTERVAL:
@@ -490,6 +556,38 @@ async def node_consolidate(state: YogacaraState) -> YogacaraState:
         if report.pruned_count > 0 or report.merged_count > 0:
             alaya.batch_update(alaya.seeds)
             logger.info(f"[Consolidation] {report.message}")
+
+    # ── 转依（念念相续：每步执行，O(n) 代价低） ──
+    engine = _get_turning_engine()
+    t_seeds, indices = _to_turning_seeds(alaya.seeds)
+    probs = _softmax_scores(state.get("plan_scores") or {})
+    reward_ctx = _reward_context_of(state)
+    result = engine.step(t_seeds, probs, reward_ctx)
+
+    # 净化回写：purify 保留原对象身份（id 匹配），按存活索引重建 alaya.seeds
+    if result.defiled_seeds_removed > 0 and alaya.seeds:
+        purified, _ = engine.alaya_purifier.purify(t_seeds)
+        survivor_ids = {id(ps) for ps in purified}
+        survivors = [alaya.seeds[indices[j]] for j, ts in enumerate(t_seeds) if id(ts) in survivor_ids]
+        if len(survivors) < len(alaya.seeds):
+            alaya.seeds = survivors
+            alaya.batch_update(alaya.seeds)
+            logger.info(
+                f"[Turning] 净化移除 {len(indices) - len(survivors)} 个染污种子，"
+                f"剩 {len(survivors)} | 我执消解 {result.self_attachment_dissolved:.3f}"
+            )
+
+    state["turning_result"] = {
+        # float() 显式转换 numpy 标量，保证 JSON 可序列化（API/桌面桥接）
+        "mirror": float(result.mirror_wisdom_level),
+        "equality": float(result.equality_wisdom_level),
+        "observation": float(result.observation_wisdom_level),
+        "action": float(result.action_wisdom_level),
+        "turning_level": float(result.turning_level),
+        "defiled_removed": int(result.defiled_seeds_removed),
+        "ego_dissolved": float(result.self_attachment_dissolved),
+        "insights": [str(i) for i in result.insights_generated],
+    }
     return state
 
 
@@ -579,6 +677,7 @@ async def main():
         "steps_since_resource": 0,
         "steps_at_same_pos": 0,
         "step_limit": 60,
+        "turning_result": None,
     }
     final_state = await graph.ainvoke(init_state)
     total_steps = final_state["step"]

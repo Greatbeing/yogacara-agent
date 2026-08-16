@@ -27,7 +27,7 @@ class TestAgentBridgeStep:
             "pos", "resources", "traps", "path",
             "action", "reward", "unc", "cumulative_reward",
             "manas_passed", "seeds_total", "seed_types",
-            "four_wisdom", "logs",
+            "four_wisdom", "turning", "logs",
         }
         missing = required - set(snap.keys())
         assert not missing, f"Snapshot missing keys: {missing}"
