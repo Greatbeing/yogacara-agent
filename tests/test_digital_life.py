@@ -224,9 +224,79 @@ class TestSamsara:
 
         b = AgentBridge(max_steps=3, speed_ms=0)
         snap = b.step_once()
-        for key in ("vitality", "death_cause", "klesha", "lifetime"):
+        for key in ("vitality", "death_cause", "klesha", "lifetime", "dream_sessions"):
             assert key in snap, f"快照缺 {key}"
         for key in ("greed", "aversion", "delusion"):
             assert key in snap["klesha"]
         assert 0 <= snap["vitality"] <= 130
         assert snap["lifetime"] >= 1
+
+
+class TestDeathDream:
+    """中阴梦境：命终时重组一生经验（离线学习）"""
+
+    def _seeded_state(self, vitality=1.0, n_seeds=8):
+        """注入足量高 imp 种子（梦境重组需要 >=3 个）"""
+        _emb = [0.05, 0.05] + [0.0] * 9
+        before = len(ylg.alaya.seeds)
+        for i in range(n_seeds):
+            ylg.alaya.seeds.append(
+                {"act": "UP" if i % 2 else "DOWN", "rew": 2.0 + i * 0.1, "imp": 0.9,
+                 "emb": list(_emb), "seed_type": "业种", "tag": "梦测", "ts": 0.0}
+            )
+        return _state(action="DOWN", vitality=vitality), before
+
+    def test_death_triggers_dream(self):
+        import asyncio
+
+        from yogacara_agent.constants import MEMORY_CAPACITY
+
+        ylg.env.reset()
+        s, before = self._seeded_state()
+        dreams_before = len(ylg._get_awakening_engine().dream_sessions)
+        try:
+            s = asyncio.run(ylg.node_execute(s))
+            assert s["death_cause"] == "寿元耗尽"
+            s = asyncio.run(ylg.node_consolidate(s))
+            assert 0 < s["dream_seeds"] <= 20, "命终应触发中阴梦境（单场上限 20）"
+            assert len(ylg._get_awakening_engine().dream_sessions) == dreams_before + 1
+            # 梦中种子入库且可检索（有 emb）
+            dream_children = [x for x in ylg.alaya.seeds if x.get("tag") == "dream_generated"]
+            assert len(dream_children) >= s["dream_seeds"], "梦中种子应全部入库"
+            for child in dream_children:
+                assert "emb" in child, "梦中种子必须有 emb（检索安全）"
+            # 容量守恒：淡忘后不超上限
+            assert len(ylg.alaya.seeds) <= MEMORY_CAPACITY
+            # 洞察含梦境行
+            assert any("中阴梦境" in i for i in s["turning_result"]["insights"])
+        finally:
+            dream_tags = {"dream_generated", "梦测"}
+            ylg.alaya.seeds[:] = [x for x in ylg.alaya.seeds if x.get("tag") not in dream_tags]
+
+    def test_few_seeds_no_dream(self):
+        """经验不足（<3 种子）不成梦，不抛异常"""
+        import asyncio
+
+        saved = list(ylg.alaya.seeds)
+        ylg.alaya.seeds.clear()
+        try:
+            s = _state(action="DOWN", vitality=1.0)
+            s = asyncio.run(ylg.node_execute(s))
+            s = asyncio.run(ylg.node_consolidate(s))
+            assert s["dream_seeds"] == 0
+        finally:
+            ylg.alaya.seeds[:] = saved
+
+    def test_alive_no_dream(self):
+        """存活时不做梦（梦只发生在命终）"""
+        import asyncio
+
+        ylg.env.reset()
+        s, before = self._seeded_state(vitality=50.0)
+        try:
+            s = asyncio.run(ylg.node_execute(s))
+            assert not s["done"]
+            s = asyncio.run(ylg.node_consolidate(s))
+            assert s["dream_seeds"] == 0
+        finally:
+            ylg.alaya.seeds[:] = ylg.alaya.seeds[:before]

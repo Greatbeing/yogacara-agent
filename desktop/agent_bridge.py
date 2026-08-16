@@ -323,6 +323,7 @@ class AgentBridge:
                 "delusion": round(float((s.get("klesha") or {}).get("delusion", 0.0)), 3),
             },
             "lifetime": ylg.current_lifetime(),
+            "dream_sessions": len(ylg._get_awakening_engine().dream_sessions),
             # 日志（最近 60 条，新的在后）
             "logs": list(self.logs)[-60:],
         }

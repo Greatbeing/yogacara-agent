@@ -276,6 +276,7 @@
         <span class="chip" title="觉醒引擎好奇驱动强度（>0.3 触发主动实验探索）">好奇心 <b id="chip-curiosity">--</b></span>
         <span class="chip" title="动作来源：启发式 或 LLM（YOGACARA_LLM_PLAN=1 时）">规划 <b id="chip-planner">heuristic</b></span>
         <span class="chip" title="轮回世数：命终后转世，阿赖耶识种子跨世延续">世数 <b id="chip-lifetime">1</b></span>
+        <span class="chip" title="中阴梦境次数：命终时重组一生经验为梦中种子（离线学习）">梦境 <b id="chip-dream">0</b></span>
         <span class="chip" title="根本烦恼：贪（得资源增长，放大趋近）">贪 <b id="chip-greed">0.00</b></span>
         <span class="chip" title="根本烦恼：嗔（踩陷阱增长，放大回避）">嗔 <b id="chip-aversion">0.00</b></span>
         <span class="chip" title="根本烦恼：痴（不确定性 EMA，注入决策噪声）">痴 <b id="chip-delusion">0.00</b></span>
@@ -438,6 +439,7 @@ function renderMemory(s) {
   $("chip-curiosity").textContent = typeof aw.curiosity === "number" ? aw.curiosity.toFixed(2) : "--";
   $("chip-planner").textContent = s.planner_source || "heuristic";
   $("chip-lifetime").textContent = s.lifetime || 1;
+  $("chip-dream").textContent = s.dream_sessions || 0;
   const k = s.klesha || {};
   $("chip-greed").textContent = (k.greed || 0).toFixed(2);
   $("chip-aversion").textContent = (k.aversion || 0).toFixed(2);

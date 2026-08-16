@@ -482,6 +482,11 @@ class AwakeningEngine:
             elif key in parent2:
                 child[key] = parent2[key]
 
+        # 情境向量继承父本1（梦境子代可直接入阿赖耶识检索；
+        # crossover 产生的子代若缺 emb 会导致 retrieve KeyError）
+        if "emb" in parent1:
+            child["emb"] = parent1["emb"]
+
         # 奖励取平均（带随机扰动）
         child["rew"] = (parent1.get("rew", 0) + parent2.get("rew", 0)) / 2 + random.uniform(-0.1, 0.1)
 

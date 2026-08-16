@@ -91,6 +91,7 @@ class YogacaraState(TypedDict):
     vitality: float  # 寿元（数字生命内稳态，耗尽即身坏命终）
     death_cause: str  # 死因（""=存活；寿元耗尽/寿量圆满/功德圆满）
     klesha: dict  # 根本烦恼 {greed 贪, aversion 嗔, delusion 痴}
+    dream_seeds: int  # 最近一次中阴梦境产生的梦中种子数
 
 
 class _IntrospectionRecordData(TypedDict):
@@ -435,6 +436,37 @@ def _memory_diversity() -> float:
         if isinstance(emb, (list, tuple)) and len(emb) >= 2:
             positions.add((round(float(emb[0]), 3), round(float(emb[1]), 3)))
     return min(1.0, len(positions) / max(1, len(alaya.seeds)))
+
+
+def _run_death_dream(state: YogacaraState) -> list[dict]:
+    """中阴梦境：命终时重组一生经验为梦中种子（转世前的离线学习）。
+
+    觉醒引擎 run_dream_replay 返回 父本+子代全集（memory_seeds+new），
+    此处只取真子代（tag=dream_generated）；单场上限 20——一场梦不应
+    比一生经验还多。子代补齐 emb 后入阿赖耶识，来世检索到的"直觉"
+    部分来自前世的梦。超出 MEMORY_CAPACITY 时按 ts 淘汰最旧（淡忘）。
+    """
+    from yogacara_agent.constants import MEMORY_CAPACITY
+
+    if len(alaya.seeds) < 3:
+        return []  # 经验不足，不足以成梦
+    engine = _get_awakening_engine()
+    outcome = engine.run_dream_replay(alaya.seeds)
+    children = [c for c in outcome if c.get("tag") == "dream_generated"][:20]
+    added = []
+    for child in children:
+        if "emb" not in child:
+            child["emb"] = alaya.encode(state["obs"])
+        alaya.add(child)  # add() 补齐 ts/imp/align/unc/tag/seed_type
+        added.append(child)
+    # 容量守恒：淡忘最旧记忆（含本梦境前的膨胀存量）
+    if len(alaya.seeds) > MEMORY_CAPACITY:
+        alaya.seeds.sort(key=lambda s: s.get("ts", 0.0))
+        del alaya.seeds[: len(alaya.seeds) - MEMORY_CAPACITY]
+    if added:
+        alaya.batch_update(alaya.seeds)
+        logger.info(f"[梦境] 中阴梦境：重组一生经验 → {len(added)} 个梦中种子入识")
+    return added
 
 
 def create_session() -> dict:
@@ -865,6 +897,17 @@ async def node_consolidate(state: YogacaraState) -> YogacaraState:
         for key in ("greed", "aversion", "delusion"):
             k[key] = k.get(key, 0.0) * relief
         state["klesha"] = k
+
+    # ── 中阴梦境：命终时重组一生经验（转世前的离线学习） ──────────
+    dream_count = 0
+    if state["done"] and state.get("death_cause"):
+        dream_children = _run_death_dream(state)
+        dream_count = len(dream_children)
+        if dream_count:
+            state["turning_result"]["insights"].append(
+                f"[中阴梦境] 一生经验重组为 {dream_count} 个梦中种子，随识转世"
+            )
+    state["dream_seeds"] = dream_count
     return state
 
 
