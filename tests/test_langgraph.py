@@ -23,7 +23,7 @@ class TestBuildGraph:
 
     def test_graph_compiles(self):
         """测试图编译成功"""
-        from yogacara_agent.yogacara_langgraph import build_graph, YogacaraState
+        from yogacara_agent.yogacara_langgraph import build_graph
 
         graph = build_graph()
         # 验证图可以编译并接受有效输入
@@ -37,11 +37,7 @@ class TestGraphNodes:
     def test_node_perceive_retrieves_seeds(self):
         """测试 node_perceive 检索种子"""
         from yogacara_agent.yogacara_langgraph import (
-            AlayaMemory,
-            GridSimEnv,
-            env,
             alaya,
-            build_graph,
             node_perceive,
         )
 
@@ -159,7 +155,7 @@ class TestGraphExecution:
 
     def test_full_graph_short_episode(self):
         """测试完整图执行 5 步"""
-        from yogacara_agent.yogacara_langgraph import build_graph, env, alaya
+        from yogacara_agent.yogacara_langgraph import build_graph, env
 
         graph = build_graph()
         init_state = {

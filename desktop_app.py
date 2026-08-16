@@ -24,6 +24,14 @@ os.chdir(_ROOT)  # 记忆文件 memory/seeds.jsonl 相对仓库根
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s [%(name)s] %(message)s")
 logging.getLogger("yogacara_agent").setLevel(logging.INFO)
 
+# .env 的 LLM_API_KEY / YOGACARA_LLM_PLAN 等对混合规划器生效
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except ImportError:
+    pass
+
 HTML_PATH = os.path.join(_ROOT, "desktop", "index.html")
 ICON_PATH = os.path.join(_ROOT, "assets", "yogacara.ico")
 

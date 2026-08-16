@@ -19,6 +19,7 @@ class LLMPlanner:
         self.model = config.get("model", "deepseek-v4-flash")
         self.temperature = config.get("temperature", 0.3)
         self.fallback_heuristic = config.get("use_fallback", True)
+        self.last_success: bool = False  # 供调用方熔断器判断（不解析 causal 字符串）
 
     def plan(self, obs: dict, seeds: list[dict]) -> tuple[str, float, str, list[dict]]:
         prompt = self._build_prompt(obs, seeds)
@@ -32,9 +33,11 @@ class LLMPlanner:
             tools = parsed.get("tool_calls", [])
             if action not in ["UP", "DOWN", "LEFT", "RIGHT", "STAY"]:
                 raise ValueError(f"Invalid action: {action}")
+            self.last_success = True
             return action, uncertainty, causal, tools
         except Exception as e:
             logger.warning(f"LLM规划失败: {e}，启用启发式降级")
+            self.last_success = False
             return self._heuristic_fallback(obs, seeds) if self.fallback_heuristic else ("STAY", 1.0, "失败", [])
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=0.5, max=2))

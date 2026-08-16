@@ -257,6 +257,8 @@
         <span class="chip">我执分数 <b id="chip-ego">0</b></span>
         <span class="chip">当前三性 <b id="chip-nature">--</b></span>
         <span class="chip" title="转识成智综合等级（镜/平/观/作 加权）">转依等级 <b id="chip-turning">--</b></span>
+        <span class="chip" title="觉醒引擎好奇驱动强度（>0.3 触发主动实验探索）">好奇心 <b id="chip-curiosity">--</b></span>
+        <span class="chip" title="动作来源：启发式 或 LLM（YOGACARA_LLM_PLAN=1 时）">规划 <b id="chip-planner">heuristic</b></span>
       </div>
     </div>
 
@@ -411,6 +413,9 @@ function renderMemory(s) {
   $("chip-nature").textContent = s.nature;
   const t = s.turning || {};
   $("chip-turning").textContent = typeof t.turning_level === "number" ? t.turning_level.toFixed(3) : "--";
+  const aw = s.awakening || {};
+  $("chip-curiosity").textContent = typeof aw.curiosity === "number" ? aw.curiosity.toFixed(2) : "--";
+  $("chip-planner").textContent = s.planner_source || "heuristic";
 }
 
 /* ── 火花线（数据未变化时跳过重绘，避免每 200ms 重建 canvas） ── */

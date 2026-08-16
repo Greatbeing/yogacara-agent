@@ -41,6 +41,8 @@ def _initial_state(max_steps: int = 60) -> dict:
         "steps_at_same_pos": 0,
         "step_limit": max_steps,
         "turning_result": None,
+        "planner_source": "heuristic",
+        "awakening": None,
     }
 
 
@@ -121,6 +123,24 @@ class AgentBridge:
                     "ego_score": 0.0,
                     "ego_triggered": False,
                     "reasoning": insight,
+                }
+            )
+        # 好奇探索触发行（觉醒引擎主动实验，橙色高亮）
+        aw = s.get("awakening") or {}
+        if aw.get("explored"):
+            self._log_seq += 1
+            self.logs.append(
+                {
+                    "seq": self._log_seq,
+                    "step": s["step"],
+                    "nature": "依他起",
+                    "action": "好奇",
+                    "reward": 0.0,
+                    "unc": float(aw.get("curiosity", 0.0)),
+                    "manas_passed": True,
+                    "ego_score": 0.0,
+                    "ego_triggered": False,
+                    "reasoning": f"[好奇探索] 好奇心 {aw.get('curiosity', 0):.2f} → 主动实验 {aw.get('experiment', '?')}",
                 }
             )
 
@@ -255,6 +275,9 @@ class AgentBridge:
             },
             # 转依引擎输出
             "turning": s.get("turning_result") or {},
+            # 觉醒引擎输出与规划来源
+            "awakening": s.get("awakening") or {},
+            "planner_source": s.get("planner_source", "heuristic"),
             # 日志（最近 60 条，新的在后）
             "logs": list(self.logs)[-60:],
         }

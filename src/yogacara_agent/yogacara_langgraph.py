@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import random
 import threading
 import time
@@ -74,6 +75,8 @@ class YogacaraState(TypedDict):
     steps_at_same_pos: int  # 连续停留计数器（正确实现is_stuck检测）
     step_limit: int  # 单次 episode 步数上限（API max_steps 注入）
     turning_result: dict | None  # 转依引擎输出（四智等级+净化计数+洞察）
+    planner_source: str  # 动作来源："heuristic" | "llm"（混合规划器）
+    awakening: dict | None  # 觉醒引擎输出（好奇心/实验类型/风险容忍度）
 
 
 class _IntrospectionRecordData(TypedDict):
@@ -294,6 +297,117 @@ def _reward_context_of(state: YogacaraState) -> str:
     return "benefit_all_beings"
 
 
+# ── 混合规划器（LLM + 启发式）──────────────────────────────────────────
+# 门控：YOGACARA_LLM_PLAN=1 且配置了 API key；节流：YOGACARA_LLM_INTERVAL（默认10步）；
+# 熔断：连续3次失败停用5分钟（Sensenova 免费档限速 ~1请求/2分钟，防止重试风暴）。
+_llm_planner = None
+_llm_enabled_checked = False
+_llm_circuit: dict = {"fails": 0, "disabled_until": 0.0}
+LLM_CIRCUIT_THRESHOLD = 3
+LLM_CIRCUIT_COOLDOWN_S = 300.0
+
+
+def _get_llm_planner():
+    """惰性构建 LLM 规划器；未启用/未配置返回 None。"""
+    global _llm_planner, _llm_enabled_checked
+    if _llm_planner is not None:
+        return _llm_planner
+    if _llm_enabled_checked:
+        return None  # 已确认未启用，不再重复检查
+    _llm_enabled_checked = True
+    if os.environ.get("YOGACARA_LLM_PLAN", "0") != "1":
+        return None
+    api_key = (
+        os.environ.get("LLM_API_KEY")
+        or os.environ.get("OPENAI_API_KEY")
+        or os.environ.get("OPENROUTER_API_KEY")
+    )
+    if not api_key:
+        logger.warning("[HybridPlan] YOGACARA_LLM_PLAN=1 但未配置 LLM_API_KEY，保持启发式")
+        return None
+    from yogacara_agent.llm_planner import LLMPlanner
+
+    _llm_planner = LLMPlanner(
+        {
+            "api_key": api_key,
+            "base_url": os.environ.get("LLM_BASE_URL", "https://token.sensenova.cn/v1"),
+            "model": os.environ.get("LLM_MODEL", "deepseek-v4-flash"),
+        }
+    )
+    logger.info(f"[HybridPlan] LLM 规划已启用（model={_llm_planner.model}）")
+    return _llm_planner
+
+
+def _reset_llm_circuit() -> None:
+    """测试辅助：重置熔断器状态。"""
+    _llm_circuit["fails"] = 0
+    _llm_circuit["disabled_until"] = 0.0
+
+
+def _hybrid_plan(
+    state: YogacaraState, heur_action: str, heur_unc: float
+) -> tuple[str, float, str, str]:
+    """启发式为基线；满足门控/节流/熔断时用 LLM 覆盖动作。
+
+    Returns:
+        (action, unc, reasoning, planner_source)
+    """
+    llm = _get_llm_planner()
+    if llm is None:
+        return heur_action, heur_unc, "", "heuristic"
+
+    # 熔断检查
+    if time.time() < _llm_circuit["disabled_until"]:
+        return heur_action, heur_unc, "", "heuristic"
+
+    # 间隔节流
+    interval = max(1, int(os.environ.get("YOGACARA_LLM_INTERVAL", "10")))
+    if state["step"] % interval != 0:
+        return heur_action, heur_unc, "", "heuristic"
+
+    try:
+        action, unc, causal, _tools = llm.plan(state["obs"], state["seeds"])
+        if llm.last_success:
+            _llm_circuit["fails"] = 0
+            return action, unc, f"[LLM] {causal}", "llm"
+        # LLMPlanner 内部已降级为启发式结果
+        raise RuntimeError("llm degraded")
+    except Exception:
+        _llm_circuit["fails"] += 1
+        if _llm_circuit["fails"] >= LLM_CIRCUIT_THRESHOLD:
+            _llm_circuit["disabled_until"] = time.time() + LLM_CIRCUIT_COOLDOWN_S
+            logger.warning(
+                f"[HybridPlan] LLM 连续失败 {LLM_CIRCUIT_THRESHOLD} 次，"
+                f"熔断 {LLM_CIRCUIT_COOLDOWN_S:.0f}s"
+            )
+        return heur_action, heur_unc, "", "heuristic"
+
+
+# ── 觉醒引擎（好奇驱动探索）────────────────────────────────────────────
+_awakening_engine = None
+
+
+def _get_awakening_engine():
+    global _awakening_engine
+    if _awakening_engine is None:
+        from yogacara_agent.awakening_engine import AwakeningEngine
+
+        _awakening_engine = AwakeningEngine({})
+    return _awakening_engine
+
+
+def _memory_diversity() -> float:
+    """种子库位置多样性：独立位置占比（0=单一，1=分散）。"""
+    if not alaya.seeds:
+        return 0.5
+    positions = set()
+    for s in alaya.seeds:
+        emb = s.get("emb") if isinstance(s, dict) else None
+        if isinstance(emb, (list, tuple)) and len(emb) >= 2:
+            positions.add((round(float(emb[0]), 3), round(float(emb[1]), 3)))
+    return min(1.0, len(positions) / max(1, len(alaya.seeds)))
+
+
 def create_session() -> dict:
     """返回共享的应用 session（env/memory/manas 等单例引用）。
 
@@ -318,7 +432,8 @@ async def node_perceive(state: YogacaraState) -> YogacaraState:
 
 
 async def node_plan(state: YogacaraState) -> YogacaraState:
-    """Plan using the shared ConsciousnessPlanner (same as demo)."""
+    """Plan using the shared ConsciousnessPlanner, with optional LLM override
+    (hybrid planner) and curiosity-driven exploration bias (awakening engine)."""
     # Stuck detection: use steps_at_same_pos (matches demo behavior correctly)
     is_stuck = state.get("steps_at_same_pos", 0) >= 2
     # Sync exploration counter into planner
@@ -330,11 +445,44 @@ async def node_plan(state: YogacaraState) -> YogacaraState:
         env_resources=env.resources,
         is_stuck=is_stuck,
     )
+
+    # ── 混合规划：门控/节流/熔断通过时 LLM 覆盖动作 ──
+    best, unc, llm_reasoning, source = _hybrid_plan(state, best, unc)
+
+    # ── 觉醒引擎：好奇驱动 + 主动实验探索偏置 ──
+    aw = _get_awakening_engine()
+    curiosity = aw.compute_curiosity_drive(state["obs"], _memory_diversity())
+    experiment = aw.generate_curiosity_experiment(curiosity)
+    # 写入行为历史（行为新颖性计算的前提，此前无人写入）
+    state_hash = str(state["obs"].get("pos", "")) + str(state["obs"].get("grid_view", [])[:5])
+    aw.action_history.append({"state_hash": state_hash, "action": best, "step": state["step"]})
+    explored = False
+    if curiosity > aw.curiosity_threshold and source == "heuristic":
+        recent_actions = {h.get("action") for h in aw.action_history[-6:]}
+        fresh = [a for a in ("UP", "DOWN", "LEFT", "RIGHT") if a not in recent_actions]
+        # 风险容忍度决定探索概率：高好奇(risk 0.8)→40%探索，中(0.5)→25%
+        if fresh and _rng.random() < experiment["risk_tolerance"] * 0.5:
+            best = _rnd_choice(fresh)
+            explored = True
+    state["awakening"] = {
+        "curiosity": round(float(curiosity), 3),
+        "experiment": experiment["type"],
+        "risk_tolerance": round(float(experiment["risk_tolerance"]), 2),
+        "explored": explored,
+        "novelty": round(float(aw.state.novelty_score), 3),
+    }
+
     state["action"] = best
     state["unc"] = unc
     state["tool_calls"] = []
     state["plan_scores"] = scores
-    state["reasoning"] = _build_reasoning(state, best, scores)
+    state["planner_source"] = source
+    reasoning = _build_reasoning(state, best, scores)
+    if llm_reasoning:
+        reasoning = f"{llm_reasoning} ｜ {reasoning}"
+    if explored:
+        reasoning += f" ｜ [好奇探索:{experiment['type']}]"
+    state["reasoning"] = reasoning
     if unc > 0.6:
         state["tool_calls"].append({"tool": "query_knowledge_base", "input": f"高不确定性状态 {state['obs']['pos']}"})
     if state["step"] % 15 == 0:
@@ -674,6 +822,8 @@ async def main():
         "steps_at_same_pos": 0,
         "step_limit": 60,
         "turning_result": None,
+        "planner_source": "heuristic",
+        "awakening": None,
     }
     final_state = await graph.ainvoke(init_state)
     total_steps = final_state["step"]

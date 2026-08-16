@@ -158,6 +158,8 @@ class AgentResponse(BaseModel):
     final_pos: list[int]
     seed_id: str
     duration_ms: int | None = None
+    planner_source: str | None = None  # "heuristic" | "llm"（混合规划器来源）
+    turning_level: float | None = None  # 转依引擎综合等级
 
 
 class HealthResponse(BaseModel):
@@ -323,6 +325,27 @@ async def trigger_evolution_snapshot():
     return {"status": "ok", "snapshot": _evolution_tracker.snapshot(session["alaya"]) }
 
 
+@app.get("/api/awakening/status", tags=["ui"])
+async def awakening_status():
+    """觉醒引擎状态：好奇驱动、行为新颖性、实验类型分布、洞察数。"""
+    from yogacara_agent import yogacara_langgraph as ylg
+
+    engine = ylg._get_awakening_engine()
+    experiments: dict[str, int] = {}
+    for h in engine.action_history[-100:]:
+        # 仅统计（experiment 类型不落历史，此处给出动作分布替代）
+        experiments[h.get("action", "?")] = experiments.get(h.get("action", "?"), 0) + 1
+    return {
+        "novelty_score": round(float(engine.state.novelty_score), 4),
+        "curiosity_threshold": engine.curiosity_threshold,
+        "action_history_len": len(engine.action_history),
+        "recent_action_distribution": experiments,
+        "insight_count": len(engine.insight_log),
+        "dream_sessions": len(engine.dream_sessions),
+        "llm_planner_enabled": ylg._get_llm_planner() is not None,
+    }
+
+
 @app.get("/memory/stats", response_model=MemoryStatsResponse, tags=["memory"])
 async def memory_stats():
     """
@@ -481,6 +504,8 @@ async def run_episode(req: AgentRequest, request: Request):
                 "steps_at_same_pos": 0,
                 "step_limit": step_limit,
                 "turning_result": None,
+                "planner_source": "heuristic",
+                "awakening": None,
             }
 
             final_state = await _get_graph().ainvoke(init_state)
@@ -521,6 +546,10 @@ async def run_episode(req: AgentRequest, request: Request):
             final_pos=final_state.get("obs", {}).get("pos", [0, 0]),
             seed_id=seed_id,
             duration_ms=duration_ms,
+            planner_source=final_state.get("planner_source", "heuristic"),
+            turning_level=(
+                (final_state.get("turning_result") or {}).get("turning_level")
+            ),
         )
 
     except HTTPException:
@@ -554,6 +583,9 @@ async def get_wisdom_metrics():
 # ── Main ──────────────────────────────────────────────────────────────────────
 async def main():
     import uvicorn
+    from dotenv import load_dotenv
+
+    load_dotenv()  # .env 的 LLM_API_KEY / YOGACARA_LLM_PLAN 等对混合规划器生效
 
     # 直接以 app 对象启动，避免字符串 import 路径导致的二次导入
     uvicorn.run(

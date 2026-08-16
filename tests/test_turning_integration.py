@@ -5,14 +5,12 @@
 种子适配器、softmax 归一化、reward_context 接线、净化回写。
 """
 
-import math
 import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-import pytest
 
 from yogacara_agent import yogacara_langgraph as ylg
 from yogacara_agent.constants import (
@@ -169,8 +167,8 @@ class TestDesktopBridgeTurning:
         t = snap["turning"]
         assert "turning_level" in t and "insights" in t
         # 日志含转依洞察行（nature=圆成实, action=转依）且 seq 递增
-        insight_rows = [l for l in snap["logs"] if l["action"] == "转依"]
+        insight_rows = [entry for entry in snap["logs"] if entry["action"] == "转依"]
         assert all(r["nature"] == "圆成实" for r in insight_rows)
         if insight_rows:
-            seqs = [l["seq"] for l in snap["logs"]]
+            seqs = [entry["seq"] for entry in snap["logs"]]
             assert seqs == sorted(seqs), "日志 seq 应单调递增"
