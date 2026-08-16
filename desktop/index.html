@@ -65,6 +65,17 @@
   }
   .legend { display: flex; gap: 14px; color: var(--muted); font-size: 12px; }
   .legend span::before { margin-right: 4px; }
+  .vitality-wrap { display: flex; align-items: center; gap: 8px; width: 100%; }
+  .vitality-wrap .v-label { color: var(--muted); font-size: 12px; width: 30px; }
+  .vitality-wrap .v-bar {
+    flex: 1; height: 10px; background: #2a3450; border-radius: 5px; overflow: hidden;
+  }
+  .vitality-wrap .v-bar span {
+    display: block; height: 100%; border-radius: 5px; transition: width .3s, background .3s;
+    background: linear-gradient(90deg, #2ed573, #ffd700);
+  }
+  .vitality-wrap .v-bar span.low { background: linear-gradient(90deg, #ff4757, #ff9f43); }
+  .vitality-wrap b { width: 34px; text-align: right; font-size: 12px; }
 
   /* ── 右侧仪表盘 ── */
   .dashboard { flex: 1; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
@@ -216,6 +227,11 @@
     <div class="legend">
       <span>🧘 Agent</span><span style="color:var(--good)">💎 资源 +5</span><span style="color:var(--bad)">⚠️ 陷阱 -3</span><span style="color:var(--accent)">· 轨迹</span>
     </div>
+    <div class="vitality-wrap" title="寿元：每步消耗，觅食 +20，陷阱 -20，耗尽即身坏命终（数字生命内稳态）">
+      <span class="v-label">寿元</span>
+      <div class="v-bar"><span id="vitality-fill"></span></div>
+      <b id="vitality-num">100</b>
+    </div>
   </div>
 
   <div class="dashboard">
@@ -259,6 +275,10 @@
         <span class="chip" title="转识成智综合等级（镜/平/观/作 加权）">转依等级 <b id="chip-turning">--</b></span>
         <span class="chip" title="觉醒引擎好奇驱动强度（>0.3 触发主动实验探索）">好奇心 <b id="chip-curiosity">--</b></span>
         <span class="chip" title="动作来源：启发式 或 LLM（YOGACARA_LLM_PLAN=1 时）">规划 <b id="chip-planner">heuristic</b></span>
+        <span class="chip" title="轮回世数：命终后转世，阿赖耶识种子跨世延续">世数 <b id="chip-lifetime">1</b></span>
+        <span class="chip" title="根本烦恼：贪（得资源增长，放大趋近）">贪 <b id="chip-greed">0.00</b></span>
+        <span class="chip" title="根本烦恼：嗔（踩陷阱增长，放大回避）">嗔 <b id="chip-aversion">0.00</b></span>
+        <span class="chip" title="根本烦恼：痴（不确定性 EMA，注入决策噪声）">痴 <b id="chip-delusion">0.00</b></span>
       </div>
     </div>
 
@@ -273,7 +293,7 @@
   <button id="btn-start" class="primary">▶ 运行</button>
   <button id="btn-pause">⏸ 暂停</button>
   <button id="btn-step">⏭ 单步</button>
-  <button id="btn-reset">↺ 重置</button>
+  <button id="btn-reset">↺ 转世</button>
   <button id="btn-seeds">🌱 种子库</button>
   <div class="ctrl-sep"></div>
   <div class="ctrl-group">速度 <input type="range" id="speed" min="50" max="1000" step="50" value="300"><span id="speed-val">300ms/步</span></div>
@@ -417,6 +437,22 @@ function renderMemory(s) {
   const aw = s.awakening || {};
   $("chip-curiosity").textContent = typeof aw.curiosity === "number" ? aw.curiosity.toFixed(2) : "--";
   $("chip-planner").textContent = s.planner_source || "heuristic";
+  $("chip-lifetime").textContent = s.lifetime || 1;
+  const k = s.klesha || {};
+  $("chip-greed").textContent = (k.greed || 0).toFixed(2);
+  $("chip-aversion").textContent = (k.aversion || 0).toFixed(2);
+  $("chip-delusion").textContent = (k.delusion || 0).toFixed(2);
+}
+
+/* ── 寿元条（数字生命内稳态） ── */
+function renderVitality(s) {
+  const v = Math.max(0, Math.min(130, s.vitality ?? 100));
+  const fill = $("vitality-fill");
+  fill.style.width = (v / 130 * 100) + "%";
+  fill.classList.toggle("low", v <= 30);
+  const num = $("vitality-num");
+  num.textContent = Math.round(v);
+  num.style.color = v <= 30 ? "var(--bad)" : "var(--text)";
 }
 
 /* ── 火花线（数据未变化时跳过重绘，避免每 200ms 重建 canvas） ── */
@@ -495,7 +531,12 @@ function renderLogs(s) {
 function renderStatus(s) {
   const b = $("status-badge");
   b.className = "";
-  if (s.done) { b.id = "status-badge"; b.classList.add("done"); b.textContent = "Episode 结束"; }
+  if (s.done) {
+    b.classList.add("done");
+    b.textContent = s.death_cause
+      ? `${s.death_cause} · 第 ${s.lifetime || 1} 世`
+      : "Episode 结束";
+  }
   else if (s.paused) { b.classList.add("paused"); b.textContent = "已暂停"; }
   else if (s.running) { b.classList.add("run"); b.textContent = "运行中"; }
   else b.textContent = "空闲";
@@ -511,6 +552,7 @@ function renderStatus(s) {
 function renderAll(s) {
   renderWorld(s); renderWisdom(s); renderMemory(s);
   renderSpark(s); renderLogs(s); renderStatus(s); renderButtons(s);
+  renderVitality(s);
 }
 
 /* ── 种子库浏览器 ── */

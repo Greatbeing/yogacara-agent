@@ -506,6 +506,9 @@ async def run_episode(req: AgentRequest, request: Request):
                 "turning_result": None,
                 "planner_source": "heuristic",
                 "awakening": None,
+                "vitality": 100.0,
+                "death_cause": "",
+                "klesha": {"greed": 0.0, "aversion": 0.0, "delusion": 0.0},
             }
 
             final_state = await _get_graph().ainvoke(init_state)

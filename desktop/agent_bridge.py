@@ -43,6 +43,9 @@ def _initial_state(max_steps: int = 60) -> dict:
         "turning_result": None,
         "planner_source": "heuristic",
         "awakening": None,
+        "vitality": 100.0,
+        "death_cause": "",
+        "klesha": {"greed": 0.0, "aversion": 0.0, "delusion": 0.0},
     }
 
 
@@ -143,6 +146,27 @@ class AgentBridge:
                     "ego_score": 0.0,
                     "ego_triggered": False,
                     "reasoning": f"[好奇探索] 好奇心 {aw.get('curiosity', 0):.2f} → 主动实验 {aw.get('experiment', '?')}",
+                }
+            )
+        # 命终事件行（金色：一期生命终结，业力入中阴种子）
+        if s["done"] and s.get("death_cause"):
+            avg_rew = sum(s["recent_rewards"]) / max(1, len(s["recent_rewards"]))
+            self._log_seq += 1
+            self.logs.append(
+                {
+                    "seq": self._log_seq,
+                    "step": s["step"],
+                    "nature": "圆成实",
+                    "action": "命终",
+                    "reward": round(avg_rew, 2),
+                    "unc": 0.0,
+                    "manas_passed": True,
+                    "ego_score": 0.0,
+                    "ego_triggered": False,
+                    "reasoning": (
+                        f"[{s['death_cause']}] 一期生命终结，业力均值 {avg_rew:+.2f} "
+                        f"入中阴种子，转世延续"
+                    ),
                 }
             )
 
@@ -290,6 +314,15 @@ class AgentBridge:
             # 觉醒引擎输出与规划来源
             "awakening": s.get("awakening") or {},
             "planner_source": s.get("planner_source", "heuristic"),
+            # 数字生命：寿元/死因/烦恼/世数
+            "vitality": round(float(s.get("vitality", 100.0)), 1),
+            "death_cause": s.get("death_cause", ""),
+            "klesha": {
+                "greed": round(float((s.get("klesha") or {}).get("greed", 0.0)), 3),
+                "aversion": round(float((s.get("klesha") or {}).get("aversion", 0.0)), 3),
+                "delusion": round(float((s.get("klesha") or {}).get("delusion", 0.0)), 3),
+            },
+            "lifetime": ylg.current_lifetime(),
             # 日志（最近 60 条，新的在后）
             "logs": list(self.logs)[-60:],
         }

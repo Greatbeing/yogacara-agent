@@ -74,3 +74,18 @@ PARINISPANNA_ALIGN = 0.7               # 圆成实种子所需最小 align
 TURNING_PURITY_THRESHOLD = 0.40  # clarity < 此值的种子被净化移除
 TURNING_EGO_DECAY_RATE = 0.15    # 每步我执消解系数
 VIPAKA_FUNCTIONAL_CLARITY = 0.75 # 异熟种功能清晰度（align 低是设计，非染污）
+
+# ── 数字生命 · 寿元/心所/轮回 ──────────────────────────────────────────
+VITALITY_INIT = 100.0     # 出生寿元
+VITALITY_MAX = 130.0      # 寿元上限（补给不溢出）
+VITALITY_DRAIN = 2.0      # 每步自然消耗（不吃不喝约 50 步寿终）
+VITALITY_RESOURCE = 20.0  # 资源补给（觅食续命）
+VITALITY_TRAP = 20.0      # 陷阱伤害
+VITALITY_REST = 0.8       # STAY 休息回复（仍为净消耗，防赖着不动的永生策略）
+
+# 贪嗔痴（根本烦恼）动力学
+KLESHA_GREED_GAIN = 0.08      # 得资源 → 贪增长
+KLESHA_AVERSION_GAIN = 0.12   # 踩陷阱 → 嗔增长
+KLESHA_DECAY = 0.99           # 每步自然衰减
+KLESHA_DELUSION_ALPHA = 0.3   # 痴 = 不确定性的 EMA 系数
+KLESHA_TURNING_RELIEF = 2.0   # 转依消解我执时的额外烦恼衰减倍率

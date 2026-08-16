@@ -23,6 +23,17 @@ from yogacara_agent.constants import (
     STAGNATION_THRESHOLD,
     CONSOLIDATION_INTERVAL,
     DEFAULT_IMPORTANCE,
+    VITALITY_INIT,
+    VITALITY_MAX,
+    VITALITY_DRAIN,
+    VITALITY_RESOURCE,
+    VITALITY_TRAP,
+    VITALITY_REST,
+    KLESHA_GREED_GAIN,
+    KLESHA_AVERSION_GAIN,
+    KLESHA_DECAY,
+    KLESHA_DELUSION_ALPHA,
+    KLESHA_TURNING_RELIEF,
 )
 
 logger = logging.getLogger(__name__)
@@ -77,6 +88,9 @@ class YogacaraState(TypedDict):
     turning_result: dict | None  # 转依引擎输出（四智等级+净化计数+洞察）
     planner_source: str  # 动作来源："heuristic" | "llm"（混合规划器）
     awakening: dict | None  # 觉醒引擎输出（好奇心/实验类型/风险容忍度）
+    vitality: float  # 寿元（数字生命内稳态，耗尽即身坏命终）
+    death_cause: str  # 死因（""=存活；寿元耗尽/寿量圆满/功德圆满）
+    klesha: dict  # 根本烦恼 {greed 贪, aversion 嗔, delusion 痴}
 
 
 class _IntrospectionRecordData(TypedDict):
@@ -204,6 +218,21 @@ seed_classifier = None  # lazy init
 _seed_counts = {"名言种": 0, "业种": 0, "异熟种": 0}  # Phase1-2 seed type counter
 _parinispanna_count = 0  # Phase3: 圆成实种子计数（用于大圆镜智指标）
 _total_classified = 0  # Phase3: 总分类种子数
+
+# ── 数字生命 · 轮回计数 ────────────────────────────────────────────────
+# 一期生命 = 一个 episode；命终计 deaths，当下世数 = deaths + 1。
+# 阿赖耶识种子跨世延续（bridge.reset 保留种子库）——业力轮回。
+_samsara: dict = {"deaths": 0}
+
+
+def current_lifetime() -> int:
+    """当下世数（第几世）。"""
+    return _samsara["deaths"] + 1
+
+
+def _note_death(cause: str) -> None:
+    _samsara["deaths"] += 1
+    logger.info(f"[轮回] 第 {_samsara['deaths']} 世命终 | 死因: {cause} | 种子库延续")
 
 
 def _get_seed_classifier():
@@ -431,6 +460,36 @@ async def node_perceive(state: YogacaraState) -> YogacaraState:
     return state
 
 
+def _apply_klesha_modulation(
+    scores: dict[str, float], obs: dict, klesha: dict | None
+) -> tuple[dict[str, float], str]:
+    """贪嗔痴对候选动作分数的调制（根本烦恼扭曲决策）。
+
+    贪（greed）: 放大对可见资源的趋近分
+    嗔（aversion）: 放大对可见风险的回避
+    痴（delusion）: 注入与不确定性成正比的噪声
+    Returns: (调制后分数, argmax 动作)
+    """
+    if not klesha or not any(v > 0.01 for v in klesha.values()):
+        best = max(scores, key=lambda a: scores[a]) if scores else "STAY"
+        return scores, best
+    view = obs.get("grid_view", [0.0] * 9)
+    greed = klesha.get("greed", 0.0)
+    aversion = klesha.get("aversion", 0.0)
+    delusion = klesha.get("delusion", 0.0)
+    modulated = {}
+    for a, base in scores.items():
+        v = view[ACTION_TO_IDX.get(a, 4)]
+        mod = 0.0
+        if v > 0:
+            mod += greed * 0.4 * v
+        elif v < 0:
+            mod -= aversion * 0.4 * abs(v)
+        modulated[a] = base + mod + _rng.gauss(0, delusion * 0.1)
+    best = max(modulated, key=lambda a: modulated[a])
+    return modulated, best
+
+
 async def node_plan(state: YogacaraState) -> YogacaraState:
     """Plan using the shared ConsciousnessPlanner, with optional LLM override
     (hybrid planner) and curiosity-driven exploration bias (awakening engine)."""
@@ -445,6 +504,9 @@ async def node_plan(state: YogacaraState) -> YogacaraState:
         env_resources=env.resources,
         is_stuck=is_stuck,
     )
+
+    # ── 贪嗔痴心所调制：烦恼扭曲决策倾向 ──
+    scores, best = _apply_klesha_modulation(scores, state["obs"], state.get("klesha"))
 
     # ── 混合规划：门控/节流/熔断通过时 LLM 覆盖动作 ──
     best, unc, llm_reasoning, source = _hybrid_plan(state, best, unc)
@@ -615,9 +677,52 @@ async def node_execute(state: YogacaraState) -> YogacaraState:
             logger.debug(f"Vipaka: {vipaka_result}")
     except Exception:
         logger.exception("[Vipaka] 反馈处理异常")
+    # ── 数字生命：寿元内稳态 ─────────────────────────────────────
+    # 每步自然消耗；觅食补给；陷阱伤害；休息微回复（仍为净消耗）。
+    vitality = float(state.get("vitality", VITALITY_INIT))
+    vitality -= VITALITY_DRAIN
+    if rew >= RESOURCE_THRESHOLD:
+        vitality = min(VITALITY_MAX, vitality + VITALITY_RESOURCE)
+    elif rew <= TRAP_REWARD + 1.0:
+        vitality -= VITALITY_TRAP
+    elif state["action"] == "STAY":
+        vitality = min(VITALITY_MAX, vitality + VITALITY_REST)
+    state["vitality"] = max(0.0, vitality)
+
+    # ── 贪嗔痴心所更新 ───────────────────────────────────────────
+    k = state.get("klesha") or {"greed": 0.0, "aversion": 0.0, "delusion": 0.0}
+    k["greed"] = min(
+        1.0, k.get("greed", 0.0) * KLESHA_DECAY
+        + (KLESHA_GREED_GAIN if rew >= RESOURCE_THRESHOLD else 0.0)
+    )
+    k["aversion"] = min(
+        1.0, k.get("aversion", 0.0) * KLESHA_DECAY
+        + (KLESHA_AVERSION_GAIN if rew <= TRAP_REWARD + 1.0 else 0.0)
+    )
+    k["delusion"] = min(
+        1.0, (1.0 - KLESHA_DELUSION_ALPHA) * k.get("delusion", 0.0)
+        + KLESHA_DELUSION_ALPHA * state["unc"]
+    )
+    state["klesha"] = k
+
+    # ── 死亡判定与死因 ───────────────────────────────────────────
+    if not state["done"] and state["vitality"] <= 0.0:
+        state["done"] = True
+        state["death_cause"] = "寿元耗尽"
+        _note_death("寿元耗尽")
+    elif state["done"] and not state.get("death_cause"):
+        # env 置位 done：资源收尽=功德圆满；内部步数上限=寿量圆满
+        if not env.resources:
+            state["death_cause"] = "功德圆满"
+        else:
+            state["death_cause"] = "寿量圆满"
+        _note_death(state["death_cause"])
+
     # 尊重调用方设置的步数上限（API 的 max_steps）
     if not state["done"] and state["step"] >= state.get("step_limit", 60):
         state["done"] = True
+        state["death_cause"] = "寿量圆满"
+        _note_death("寿量圆满")
     return state
 
 
@@ -679,6 +784,26 @@ async def node_store(state: YogacaraState) -> YogacaraState:
             "seed_type": classification.seed_type,
         }
     )
+
+    # ── 中阴种子：一期生命终结的业力总结（转世后可检索） ──────────
+    if state["done"] and state.get("death_cause"):
+        avg_rew = sum(state["recent_rewards"]) / max(1, len(state["recent_rewards"]))
+        alaya.add(
+            {
+                "emb": alaya.encode(state["obs"]),
+                "act": "LIFE_SUMMARY",
+                "rew": round(avg_rew, 2),
+                "ts": time.time(),
+                "imp": 1.0,  # 生死大事，重要性顶格
+                "align": 0.5 + max(-0.45, min(0.45, avg_rew / 10.0)),
+                "unc": 0.0,
+                "tag": f"中阴_{state['death_cause']}",
+                "seed_type": "异熟种",
+            }
+        )
+        logger.info(
+            f"[中阴] 命终[{state['death_cause']}] 业力均值 {avg_rew:+.2f} → 种子入库"
+        )
     return state
 
 
@@ -732,6 +857,14 @@ async def node_consolidate(state: YogacaraState) -> YogacaraState:
         "ego_dissolved": float(result.self_attachment_dissolved),
         "insights": [str(i) for i in result.insights_generated],
     }
+
+    # ── 修行减恼：我执消解同步衰减贪嗔痴 ─────────────────────────
+    k = state.get("klesha")
+    if k and result.self_attachment_dissolved > 0.01:
+        relief = 1.0 / (1.0 + KLESHA_TURNING_RELIEF * result.self_attachment_dissolved)
+        for key in ("greed", "aversion", "delusion"):
+            k[key] = k.get(key, 0.0) * relief
+        state["klesha"] = k
     return state
 
 
@@ -824,6 +957,9 @@ async def main():
         "turning_result": None,
         "planner_source": "heuristic",
         "awakening": None,
+        "vitality": 100.0,
+        "death_cause": "",
+        "klesha": {"greed": 0.0, "aversion": 0.0, "delusion": 0.0},
     }
     final_state = await graph.ainvoke(init_state)
     total_steps = final_state["step"]
