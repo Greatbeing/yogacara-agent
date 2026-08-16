@@ -20,7 +20,7 @@ def test_collaborative_session_shares_memory():
 
     obs = agent0["env"].reset()
     seed = Seed(state_emb=agent0["alaya"]._encode(obs), action="RIGHT", reward=1.0, timestamp=0.0)
-    setattr(seed, "source_agent", "agent-0")
+    seed.source_agent = "agent-0"
     coordinator.alaya.add(seed)
 
     result = coordinator.run_episode("agent-1", max_steps=3)

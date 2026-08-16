@@ -26,8 +26,6 @@ class TestAlayaPersistentMemory:
 
     def test_atomic_write(self):
         """测试原子写：写一半时程序崩溃不应损坏文件"""
-        import json
-        import time
 
         from yogacara_agent.alaya_persistent import PersistentAlayaMemory
 
