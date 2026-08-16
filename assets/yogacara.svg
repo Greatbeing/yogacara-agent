@@ -1,80 +1,95 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
   <defs>
-    <!-- 背景渐变圆 -->
-    <radialGradient id="bg" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#1d2538"/>
-      <stop offset="100%" stop-color="#0f1420"/>
+    <!-- 背景径向渐变：中心稍亮 -->
+    <radialGradient id="bg" cx="50%" cy="42%" r="75%">
+      <stop offset="0%" stop-color="#232e47"/>
+      <stop offset="55%" stop-color="#171e2e"/>
+      <stop offset="100%" stop-color="#0d111c"/>
     </radialGradient>
-    <!-- 花瓣渐变 -->
-    <linearGradient id="petal" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#7ec8ff"/>
-      <stop offset="60%" stop-color="#4da3ff"/>
-      <stop offset="100%" stop-color="#2b7de9"/>
+    <!-- 花瓣主渐变（沿花瓣轴：尖亮→根深） -->
+    <linearGradient id="petalOuter" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#8fd0ff"/>
+      <stop offset="55%" stop-color="#4da3ff"/>
+      <stop offset="100%" stop-color="#2b6fd4"/>
     </linearGradient>
-    <!-- 花瓣内发光 -->
-    <radialGradient id="petalGlow" cx="50%" cy="40%" r="60%">
-      <stop offset="0%" stop-color="rgba(255,255,255,0.35)"/>
-      <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
+    <!-- 内层高光花瓣 -->
+    <linearGradient id="petalInner" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#d8efff"/>
+      <stop offset="100%" stop-color="#7ec3ff"/>
+    </linearGradient>
+    <!-- 金蕊径向渐变 -->
+    <radialGradient id="core" cx="42%" cy="38%" r="70%">
+      <stop offset="0%" stop-color="#fff3c4"/>
+      <stop offset="45%" stop-color="#ffd700"/>
+      <stop offset="100%" stop-color="#f08c00"/>
     </radialGradient>
-    <!-- 中心光晕 -->
-    <radialGradient id="center" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#ffd700"/>
-      <stop offset="70%" stop-color="#ffb300"/>
-      <stop offset="100%" stop-color="#ff9800"/>
+    <!-- 蕊外光晕 -->
+    <radialGradient id="coreGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffd700" stop-opacity="0.55"/>
+      <stop offset="60%" stop-color="#ffb300" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#ffb300" stop-opacity="0"/>
     </radialGradient>
   </defs>
 
-  <!-- 背景圆 -->
-  <circle cx="128" cy="128" r="120" fill="url(#bg)" stroke="#2a3450" stroke-width="2"/>
+  <!-- Win11 风格圆角方形底 -->
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#bg)"/>
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="none"
+        stroke="#2a3450" stroke-width="2.5"/>
+  <!-- 内侧细高光线（顶缘 1px 感） -->
+  <rect x="22" y="22" width="468" height="468" rx="106" fill="none"
+        stroke="#3d4a6b" stroke-width="1.2" opacity="0.55"/>
 
-  <!-- 八识 · 八瓣莲花 -->
-  <g transform="translate(128,128)">
-    <!-- 8 片花瓣，均匀分布 -->
-    <g transform="rotate(0)">
-      <ellipse cx="0" cy="-52" rx="18" ry="38" fill="url(#petal)" opacity="0.92"/>
-      <ellipse cx="0" cy="-52" rx="18" ry="38" fill="url(#petalGlow)"/>
-    </g>
-    <g transform="rotate(45)">
-      <ellipse cx="0" cy="-52" rx="18" ry="38" fill="url(#petal)" opacity="0.88"/>
-      <ellipse cx="0" cy="-52" rx="18" ry="38" fill="url(#petalGlow)"/>
-    </g>
-    <g transform="rotate(90)">
-      <ellipse cx="0" cy="-52" rx="18" ry="38" fill="url(#petal)" opacity="0.85"/>
-      <ellipse cx="0" cy="-52" rx="18" ry="38" fill="url(#petalGlow)"/>
-    </g>
-    <g transform="rotate(135)">
-      <ellipse cx="0" cy="-52" rx="18" ry="38" fill="url(#petal)" opacity="0.82"/>
-      <ellipse cx="0" cy="-52" rx="18" ry="38" fill="url(#petalGlow)"/>
-    </g>
-    <g transform="rotate(180)">
-      <ellipse cx="0" cy="-52" rx="18" ry="38" fill="url(#petal)" opacity="0.80"/>
-      <ellipse cx="0" cy="-52" rx="18" ry="38" fill="url(#petalGlow)"/>
-    </g>
-    <g transform="rotate(225)">
-      <ellipse cx="0" cy="-52" rx="18" ry="38" fill="url(#petal)" opacity="0.78"/>
-      <ellipse cx="0" cy="-52" rx="18" ry="38" fill="url(#petalGlow)"/>
-    </g>
-    <g transform="rotate(270)">
-      <ellipse cx="0" cy="-52" rx="18" ry="38" fill="url(#petal)" opacity="0.76"/>
-      <ellipse cx="0" cy="-52" rx="18" ry="38" fill="url(#petalGlow)"/>
-    </g>
-    <g transform="rotate(315)">
-      <ellipse cx="0" cy="-52" rx="18" ry="38" fill="url(#petal)" opacity="0.74"/>
-      <ellipse cx="0" cy="-52" rx="18" ry="38" fill="url(#petalGlow)"/>
+  <!-- 禅圆 ensō：约 336° 弧，缺口在右上（修行未尽之意） -->
+  <g transform="translate(256,256)">
+    <path d="M 158 -14 A 159 159 0 1 1 96 127"
+          fill="none" stroke="#4da3ff" stroke-width="5"
+          stroke-linecap="round" opacity="0.34"/>
+
+    <!-- ── 外层八瓣（八识）── 泪滴形，45° 均分 -->
+    <g>
+      <g transform="rotate(0)"><use href="#petal"/></g>
+      <g transform="rotate(45)"><use href="#petal"/></g>
+      <g transform="rotate(90)"><use href="#petal"/></g>
+      <g transform="rotate(135)"><use href="#petal"/></g>
+      <g transform="rotate(180)"><use href="#petal"/></g>
+      <g transform="rotate(225)"><use href="#petal"/></g>
+      <g transform="rotate(270)"><use href="#petal"/></g>
+      <g transform="rotate(315)"><use href="#petal"/></g>
     </g>
 
-    <!-- 花蕊（金色中心） -->
-    <circle cx="0" cy="0" r="16" fill="url(#center)"/>
-    <circle cx="0" cy="0" r="10" fill="#fff8e1" opacity="0.5"/>
-    <circle cx="0" cy="0" r="4" fill="#ffffff" opacity="0.7"/>
+    <!-- ── 内层高光花瓣（0.66 缩放，提层次）── -->
+    <g opacity="0.9" transform="scale(0.66)">
+      <g transform="rotate(22.5)"><use href="#petalHi"/></g>
+      <g transform="rotate(67.5)"><use href="#petalHi"/></g>
+      <g transform="rotate(112.5)"><use href="#petalHi"/></g>
+      <g transform="rotate(157.5)"><use href="#petalHi"/></g>
+      <g transform="rotate(202.5)"><use href="#petalHi"/></g>
+      <g transform="rotate(247.5)"><use href="#petalHi"/></g>
+      <g transform="rotate(292.5)"><use href="#petalHi"/></g>
+      <g transform="rotate(337.5)"><use href="#petalHi"/></g>
+    </g>
 
-    <!-- 外圈光环（禅圆 ensō） -->
-    <circle cx="0" cy="0" r="85" fill="none" stroke="#4da3ff" stroke-width="1.5"
-            stroke-dasharray="40 12 8 12" opacity="0.3"
-            transform="rotate(-30)"/>
+    <!-- 金蕊（转依之智）-->
+    <circle cx="0" cy="0" r="86" fill="url(#coreGlow)"/>
+    <circle cx="0" cy="0" r="40" fill="url(#core)"/>
+    <circle cx="0" cy="0" r="40" fill="none" stroke="#b8860b" stroke-width="1.6" opacity="0.6"/>
+    <!-- 高光点 -->
+    <ellipse cx="-11" cy="-13" rx="12" ry="9" fill="#ffffff" opacity="0.55" transform="rotate(-32 -11 -13)"/>
   </g>
 
-  <!-- 底部文字 -->
-  <text x="128" y="218" text-anchor="middle" font-family="serif" font-size="16"
-        fill="#7c8bb0" letter-spacing="4">唯 識</text>
+  <!-- 花瓣定义（供 use 引用）：泪滴形，尖朝上，根在下方 -->
+  <defs>
+    <path id="petal" d="M 0 -168
+      C 30 -138 40 -96 40 -58
+      C 40 -18 22 8 0 24
+      C -22 8 -40 -18 -40 -58
+      C -40 -96 -30 -138 0 -168 Z"
+      fill="url(#petalOuter)"/>
+    <path id="petalHi" d="M 0 -168
+      C 30 -138 40 -96 40 -58
+      C 40 -18 22 8 0 24
+      C -22 8 -40 -18 -40 -58
+      C -40 -96 -30 -138 0 -168 Z"
+      fill="url(#petalInner)"/>
+  </defs>
 </svg>

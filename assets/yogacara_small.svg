@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="bgS" cx="50%" cy="42%" r="78%">
+      <stop offset="0%" stop-color="#232e47"/>
+      <stop offset="55%" stop-color="#171e2e"/>
+      <stop offset="100%" stop-color="#0d111c"/>
+    </radialGradient>
+    <linearGradient id="petalS" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#8fd0ff"/>
+      <stop offset="55%" stop-color="#4da3ff"/>
+      <stop offset="100%" stop-color="#2b6fd4"/>
+    </linearGradient>
+    <radialGradient id="coreS" cx="42%" cy="38%" r="70%">
+      <stop offset="0%" stop-color="#fff3c4"/>
+      <stop offset="45%" stop-color="#ffd700"/>
+      <stop offset="100%" stop-color="#f08c00"/>
+    </radialGradient>
+  </defs>
+
+  <rect x="6" y="6" width="500" height="500" rx="116" fill="url(#bgS)"/>
+  <rect x="6" y="6" width="500" height="500" rx="116" fill="none"
+        stroke="#2a3450" stroke-width="3"/>
+
+  <g transform="translate(256,256)">
+    <!-- 粗长八瓣（小尺寸高可见度） -->
+    <g fill="url(#petalS)">
+      <path transform="rotate(0)"   d="M 0 -200 C 46 -150 58 -84 58 -34 C 58 14 30 46 0 60 C -30 46 -58 14 -58 -34 C -58 -84 -46 -150 0 -200 Z"/>
+      <path transform="rotate(45)"  d="M 0 -200 C 46 -150 58 -84 58 -34 C 58 14 30 46 0 60 C -30 46 -58 14 -58 -34 C -58 -84 -46 -150 0 -200 Z"/>
+      <path transform="rotate(90)"  d="M 0 -200 C 46 -150 58 -84 58 -34 C 58 14 30 46 0 60 C -30 46 -58 14 -58 -34 C -58 -84 -46 -150 0 -200 Z"/>
+      <path transform="rotate(135)" d="M 0 -200 C 46 -150 58 -84 58 -34 C 58 14 30 46 0 60 C -30 46 -58 14 -58 -34 C -58 -84 -46 -150 0 -200 Z"/>
+      <path transform="rotate(180)" d="M 0 -200 C 46 -150 58 -84 58 -34 C 58 14 30 46 0 60 C -30 46 -58 14 -58 -34 C -58 -84 -46 -150 0 -200 Z"/>
+      <path transform="rotate(225)" d="M 0 -200 C 46 -150 58 -84 58 -34 C 58 14 30 46 0 60 C -30 46 -58 14 -58 -34 C -58 -84 -46 -150 0 -200 Z"/>
+      <path transform="rotate(270)" d="M 0 -200 C 46 -150 58 -84 58 -34 C 58 14 30 46 0 60 C -30 46 -58 14 -58 -34 C -58 -84 -46 -150 0 -200 Z"/>
+      <path transform="rotate(315)" d="M 0 -200 C 46 -150 58 -84 58 -34 C 58 14 30 46 0 60 C -30 46 -58 14 -58 -34 C -58 -84 -46 -150 0 -200 Z"/>
+    </g>
+    <!-- 大金蕊 -->
+    <circle cx="0" cy="0" r="66" fill="url(#coreS)"/>
+    <ellipse cx="-18" cy="-20" rx="18" ry="12" fill="#ffffff" opacity="0.5" transform="rotate(-32 -18 -20)"/>
+  </g>
+</svg>
