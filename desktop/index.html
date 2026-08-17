@@ -284,7 +284,10 @@
     </div>
 
     <div class="panel" style="flex:1">
-      <h3>累计奖励走势 · 果报曲线</h3>
+      <h3>累计奖励走势 · 果报曲线
+        <button id="btn-chart-mode" title="切换当前世/轮回进程"
+          style="margin-left:8px;padding:2px 8px;font-size:11px;border-radius:5px;font-weight:400;">💰 当前世</button>
+      </h3>
       <canvas id="spark"></canvas>
     </div>
   </div>
@@ -370,6 +373,7 @@
 
 <script>
 let api = null, polling = null, lastLogSeq = 0, cumSeries = [], lastSnapshot = null;
+let autoRebirthTimer = null, chartMode = "spark";  // "spark" | "lives"
 
 const $ = id => document.getElementById(id);
 
@@ -484,9 +488,10 @@ function renderVitality(s) {
   num.style.color = v <= 30 ? "var(--bad)" : "var(--text)";
 }
 
-/* ── 火花线（数据未变化时跳过重绘，避免每 200ms 重建 canvas） ── */
+/* ── 火花线 / 轮回进程图 ── */
 let lastSparkKey = "";
 function renderSpark(s) {
+  if (chartMode === "lives") { renderLivesChart(s); return; }
   const key = s.recent_rewards.join(",") + "|" + s.step;
   if (key === lastSparkKey) return;
   lastSparkKey = key;
@@ -519,6 +524,42 @@ function renderSpark(s) {
   ctx.beginPath(); ctx.moveTo(x(0), y(cumSeries[0]));
   cumSeries.forEach((v, i) => ctx.lineTo(x(i), y(v)));
   ctx.strokeStyle = "#4da3ff"; ctx.lineWidth = 1.6; ctx.stroke();
+}
+
+/* ── 轮回进程条形图（多世业力对比） ── */
+function renderLivesChart(s) {
+  const lives = s.life_history || [];
+  const cv = $("spark"), ctx = cv.getContext("2d");
+  cv.width = cv.offsetWidth * devicePixelRatio; cv.height = cv.offsetHeight * devicePixelRatio;
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+  const W = cv.offsetWidth, H = cv.offsetHeight;
+  ctx.clearRect(0, 0, W, H);
+  if (!lives.length) {
+    ctx.fillStyle = "#7c8bb0"; ctx.font = "12px sans-serif";
+    ctx.fillText("尚无前世记录——命终后此处显示轮回进程", 10, H / 2); return;
+  }
+  const n = lives.length, barW = Math.min(28, Math.max(8, (W - 20) / n - 4));
+  const rewards = lives.map(l => l.reward || 0);
+  const minR = Math.min(...rewards, 0), maxR = Math.max(...rewards, 0.1);
+  const scale = (H - 24) / (maxR - minR + 0.1);
+  // 零线
+  ctx.strokeStyle = "#2a3450"; ctx.beginPath();
+  ctx.moveTo(8, H - 8 + minR * scale); ctx.lineTo(W - 8, H - 8 + minR * scale); ctx.stroke();
+  // 每世一条柱（用颜色标死因）
+  lives.forEach((life, i) => {
+    const x = 10 + i * (barW + 4);
+    const h = Math.max(2, (life.reward - minR) * scale);
+    const y = H - 8 - h;
+    const color = life.death_cause === "功德圆满" ? "#2ed573"
+      : life.death_cause === "寿元耗尽" ? "#ff4757" : "#4da3ff";
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, barW, h);
+    // 世数标注（每隔一根）
+    if (i % 2 === 0 || n <= 10) {
+      ctx.fillStyle = "#7c8bb0"; ctx.font = "9px sans-serif";
+      ctx.fillText(life.lifetime, x + 1, H - 1);
+    }
+  });
 }
 
 /* ── 日志流 ──（textContent 安全构建，防 XSS） */
@@ -562,9 +603,15 @@ function renderStatus(s) {
   b.className = "";
   if (s.done) {
     b.classList.add("done");
-    b.textContent = s.death_cause
-      ? `${s.death_cause} · 第 ${s.lifetime || 1} 世`
-      : "Episode 结束";
+    if (s.death_cause) {
+      b.textContent = `${s.death_cause} · 第 ${s.lifetime || 1} 世`;
+      // 自动转世倒计时（仅非手动触发时显示）
+      if (autoRebirthTimer !== null) {
+        b.textContent += ` · ${autoRebirthCountdown}s 后转世…`;
+      }
+    } else {
+      b.textContent = "Episode 结束";
+    }
   }
   else if (s.paused) { b.classList.add("paused"); b.textContent = "已暂停"; }
   else if (s.running) { b.classList.add("run"); b.textContent = "运行中"; }
@@ -656,11 +703,36 @@ function toggleLivesOverlay(show) {
 }
 
 /* ── 轮询与控制 ── */
-let busy = false;
+let busy = false, autoRebirthCountdown = 0;
+
+function cancelAutoRebirth() {
+  if (autoRebirthTimer !== null) {
+    clearInterval(autoRebirthTimer);
+    autoRebirthTimer = null;
+  }
+}
+
 async function poll() {
   if (!api || busy) return;
   busy = true;
-  try { lastSnapshot = await api.get_snapshot(); renderAll(lastSnapshot); } catch (e) { /* 忽略瞬时错误 */ }
+  try {
+    lastSnapshot = await api.get_snapshot();
+    renderAll(lastSnapshot);
+    // 自动转世：命终 3 秒后重生（连续生命周期）
+    if (lastSnapshot.done && autoRebirthTimer === null && !lastSnapshot.manual_override) {
+      autoRebirthCountdown = 3;
+      autoRebirthTimer = setInterval(() => {
+        autoRebirthCountdown--;
+        if (autoRebirthCountdown <= 0) {
+          clearInterval(autoRebirthTimer);
+          autoRebirthTimer = null;
+          if (api) {
+            api.reset().catch(() => {});
+          }
+        }
+      }, 1000);
+    }
+  } catch (e) { /* 忽略瞬时错误 */ }
   busy = false;
 }
 
@@ -675,6 +747,7 @@ function renderButtons(s) {
 
 async function startRun() {
   if (!api) return;
+  cancelAutoRebirth();
   await api.start(parseInt($("max-steps").value) || 60, parseInt($("speed").value));
 }
 window.addEventListener("DOMContentLoaded", () => {
@@ -694,9 +767,10 @@ window.addEventListener("DOMContentLoaded", () => {
   }, 5000);
   $("btn-start").onclick = startRun;
   $("btn-pause").onclick = () => api && api.pause();
-  $("btn-step").onclick = async () => { if (api) { await api.pause(); renderAll(await api.step_once()); } };
+  $("btn-step").onclick = async () => { if (api) { cancelAutoRebirth(); await api.pause(); renderAll(await api.step_once()); } };
   $("btn-reset").onclick = async () => {
     if (!api) return;
+    cancelAutoRebirth();
     lastLogSeq = 0; $("logs").innerHTML = "";
     lastSparkKey = "";
     renderAll(await api.reset());
@@ -713,6 +787,12 @@ window.addEventListener("DOMContentLoaded", () => {
   $("btn-lives-close").onclick = () => toggleLivesOverlay(false);
   $("btn-lives-refresh").onclick = () => { poll(); setTimeout(loadLives, 250); };
   $("lives-overlay").onclick = e => { if (e.target === $("lives-overlay")) toggleLivesOverlay(false); };
+  $("btn-chart-mode").onclick = () => {
+    chartMode = chartMode === "spark" ? "lives" : "spark";
+    $("btn-chart-mode").textContent = chartMode === "spark" ? "💰 当前世" : "🌍 轮回进程";
+    lastSparkKey = "";  // 强制重绘
+    if (lastSnapshot) renderSpark(lastSnapshot);
+  };
   $("speed").oninput = e => {
     $("speed-val").textContent = e.target.value + "ms/步";
     // 仅调速：不触碰运行状态（此前误调 start()，空闲时拖滑块会意外启动 Agent）
