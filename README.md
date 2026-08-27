@@ -66,7 +66,7 @@ python desktop_app.py
 **方式 D — 标准测试**
 ```bash
 python -m yogacara_agent.yogacara_test     # 9项核心测试
-pytest tests/                              # 完整测试套件（94 项）
+pytest tests/                              # 完整测试套件（111 项）
 ```
 
 ---

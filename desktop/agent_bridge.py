@@ -63,8 +63,8 @@ class AgentBridge:
         self.max_steps = max_steps
         self.speed_ms = speed_ms
 
-        self._running = False          # 连续运行标志
-        self._go = threading.Event()   # set=继续 / clear=暂停
+        self._running = False  # 连续运行标志
+        self._go = threading.Event()  # set=继续 / clear=暂停
         self._go.set()
         self._thread: threading.Thread | None = None
 
@@ -163,10 +163,7 @@ class AgentBridge:
                     "manas_passed": True,
                     "ego_score": 0.0,
                     "ego_triggered": False,
-                    "reasoning": (
-                        f"[{s['death_cause']}] 一期生命终结，业力均值 {avg_rew:+.2f} "
-                        f"入中阴种子，转世延续"
-                    ),
+                    "reasoning": (f"[{s['death_cause']}] 一期生命终结，业力均值 {avg_rew:+.2f} 入中阴种子，转世延续"),
                 }
             )
 
