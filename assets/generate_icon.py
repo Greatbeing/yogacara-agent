@@ -1,17 +1,17 @@
 """
-一次性脚本：程序化渲染 Yogacara 桌面图标（纯 Pillow，零原生依赖）
+一次性脚本：程序化渲染 Yogacara「八转四」桌面图标（纯 Pillow）
 运行：python assets/generate_icon.py
 
 设计（与 assets/yogacara.svg 同一几何）：
-  - Win11 圆角方形深底 + 径向渐变
-  - 外层八瓣莲花（八识）：泪滴贝塞尔花瓣，45° 均分，轴向渐变
-  - 内层高光花瓣（22.5° 偏移，0.66 缩放）
-  - 断口禅圆 ensō（336° 弧，修行无尽）
-  - 金蕊（转依之智）+ 高光
-小尺寸（16/32/48）用简化变体（粗瓣大蕊无禅圆），缩放后轮廓清晰。
-矢量源文件 yogacara.svg / yogacara_small.svg 供 Web 与文档使用。
+  - Win11 圆角方形深底
+  - 8 枚菱形刀刃放射（八识）：正位×4 实心蓝 = 转成的四智；
+    斜位×4 描边蓝 = 在转化的现行识
+  - 腰线细环 + 中心金点（阿赖耶识自性）为构图锚
+小尺寸变体（16/32/48）：粗刃粗描边大金蕊、去腰线。
+刀刃顶点以三角函数直接落在最终位置（无旋转贴图位移），1024 超采样→512。
 """
 
+import math
 import os
 import sys
 
@@ -23,243 +23,197 @@ PNG_PATH = os.path.join(ASSETS_DIR, "yogacara.png")
 PNG_SMALL_PATH = os.path.join(ASSETS_DIR, "yogacara_small.png")
 FAVICON_PATH = os.path.join(ASSETS_DIR, "favicon.png")
 
-RENDER_N = 1024  # 超采样渲染尺寸
+RENDER_N = 1024
 FINAL_N = 512
 
 
-# ── 基础工具 ────────────────────────────────────────────────────────────
 def _hex(c: str) -> tuple:
     c = c.lstrip("#")
     return tuple(int(c[i : i + 2], 16) for i in (0, 2, 4))
 
 
-def _lerp(a, b, t):
-    return tuple(int(a[i] + (b[i] - a[i]) * t) for i in range(len(a)))
+def _rot(px: float, py: float, deg: float) -> tuple:
+    """绕原点旋转。SVG rotate() 为顺时针（y 向下坐标系），此处保持一致。"""
+    t = math.radians(deg)
+    return (px * math.cos(t) - py * math.sin(t), px * math.sin(t) + py * math.cos(t))
 
 
-def _grad_color(stops: list, t: float):
-    """多段线性渐变取色。stops: [(pos, (r,g,b)), ...]"""
+def _blade_vertices(small: bool) -> list:
+    """未旋转的菱形刀刃局部顶点（尖朝上）。"""
+    if small:
+        pts = [(0, -64), (34, -126), (0, -196), (-34, -126)]  # 实心用
+        pts_s = [(0, -70), (30, -126), (0, -188), (-30, -126)]  # 描边用（略短避免叠线）
+        return pts, pts_s
+    return [(0, -58), (25, -126), (0, -192), (-25, -126)], [
+        (0, -62),
+        (23, -126),
+        (0, -186),
+        (-23, -126),
+    ]
+
+
+def _rounded_bg(img: Image.Image, inset: float, radius: float):
+    """圆角方形深底：径向渐变 + 外沿描边。坐标按 512 基准缩放。"""
+    n = img.size[0]
+    s = n / 512
+    stops = [(0.0, _hex("#1a2334")), (0.55, _hex("#121828")), (1.0, _hex("#0b0f1a"))]
+    grad = Image.new("RGB", (n, n))
+    gd = ImageDraw.Draw(grad)
+    cx, cy, rmax = int(n * 0.5), int(n * 0.42), int(n * 0.78)
+    for r in range(rmax, 0, -2):
+        t = 1 - r / rmax
+        gd.ellipse([cx - r, cy - r, cx + r, cy + r], fill=_grad(stops, t))
+    mask = Image.new("L", (n, n), 0)
+    ImageDraw.Draw(mask).rounded_rectangle(
+        [inset * s, inset * s, (512 - inset) * s, (512 - inset) * s],
+        radius=radius * s,
+        fill=255,
+    )
+    img.paste(grad, (0, 0), mask)
+    d = ImageDraw.Draw(img)
+    d.rounded_rectangle(
+        [inset * s, inset * s, (512 - inset) * s, (512 - inset) * s],
+        radius=radius * s,
+        outline=_hex("#2a3450"),
+        width=max(2, int(2.5 * s)),
+    )
+
+
+def _grad(stops: list, t: float) -> tuple:
     t = max(0.0, min(1.0, t))
     for (p0, c0), (p1, c1) in zip(stops, stops[1:]):
         if p0 <= t <= p1:
-            return _lerp(c0, c1, (t - p0) / max(1e-6, p1 - p0))
+            f = (t - p0) / max(1e-6, p1 - p0)
+            return tuple(int(c0[i] + (c1[i] - c0[i]) * f) for i in range(3))
     return stops[-1][1]
 
 
-def _bezier(p0, p1, p2, p3, n=24):
-    """三次贝塞尔采样点。"""
-    pts = []
-    for i in range(n + 1):
-        t = i / n
-        mt = 1 - t
-        x = mt**3 * p0[0] + 3 * mt**2 * t * p1[0] + 3 * mt * t**2 * p2[0] + t**3 * p3[0]
-        y = mt**3 * p0[1] + 3 * mt**2 * t * p1[1] + 3 * mt * t**2 * p2[1] + t**3 * p3[1]
-        pts.append((x, y))
-    return pts
-
-
-def _petal_polygon(scale: float = 1.0) -> list:
-    """泪滴花瓣轮廓（SVG 路径的贝塞尔展平）。坐标以花心为原点，尖朝上。"""
-    segs = [
-        ((0, -168), (30, -138), (40, -96), (40, -58)),
-        ((40, -58), (40, -18), (22, 8), (0, 24)),
-        ((0, 24), (-22, 8), (-40, -18), (-40, -58)),
-        ((-40, -58), (-40, -96), (-30, -138), (0, -168)),
-    ]
-    pts = []
-    for p0, p1, p2, p3 in segs:
-        pts.extend(_bezier(p0, p1, p2, p3))
-    return [(x * scale, y * scale) for x, y in pts]
-
-
-# ── 组件渲染 ────────────────────────────────────────────────────────────
-def _bg_rounded_rect(img: Image.Image):
-    """圆角方形深底：径向渐变 + 边框 + 内侧高光线。"""
-    N = img.size[0]
-    d = ImageDraw.Draw(img)
-    # 径向渐变（分层椭圆近似，圆角矩形裁剪）
-    stops = [(0.0, _hex("#232e47")), (0.55, _hex("#171e2e")), (1.0, _hex("#0d111c"))]
-    grad = Image.new("RGB", (N, N))
-    gd = ImageDraw.Draw(grad)
-    cx, cy, R = int(N * 0.5), int(N * 0.42), int(N * 0.78)
-    for r in range(R, 0, -2):
-        t = 1 - r / R
-        gd.ellipse([cx - r, cy - r, cx + r, cy + r], fill=_grad_color(stops, t))
-    mask = Image.new("L", (N, N), 0)
-    md = ImageDraw.Draw(mask)
-    md.rounded_rectangle([16 / 512 * N, 16 / 512 * N, 496 / 512 * N, 496 / 512 * N],
-                         radius=112 / 512 * N, fill=255)
-    img.paste(grad, (0, 0), mask)
-    d.rounded_rectangle([16 / 512 * N, 16 / 512 * N, 496 / 512 * N, 496 / 512 * N],
-                        radius=112 / 512 * N, outline=_hex("#2a3450"), width=max(2, int(2.5 / 512 * N)))
-    d.rounded_rectangle([22 / 512 * N, 22 / 512 * N, 490 / 512 * N, 490 / 512 * N],
-                        radius=106 / 512 * N, outline=_hex("#3d4a6b"), width=max(1, int(1.2 / 512 * N)))
-
-
-def _enso(img: Image.Image):
-    """断口禅圆：336° 弧，圆头端帽。"""
-    N = img.size[0]
-    s = N / 512
-    layer = Image.new("RGBA", (N, N), (0, 0, 0, 0))
-    d = ImageDraw.Draw(layer)
-    r = 159 * s
-    cx = cy = N / 2
-    # SVG: M 158,-14 A 159 159 0 1 1 96,127（以花心为原点）→ 起止角
-    import math
-
-    a0 = math.degrees(math.atan2(-14 * s, 158 * s))
-    a1 = math.degrees(math.atan2(127 * s, 96 * s))
-    d.arc([cx - r, cy - r, cx + r, cy + r], start=a0, end=a1 + 360 if a1 < a0 else a1,
-          fill=(77, 163, 255, 87), width=max(3, int(5 * s)))
-    # 圆头端帽
-    for ang in (a0, a1 if a1 > a0 else a1 + 360):
-        px = cx + r * math.cos(math.radians(ang))
-        py = cy + r * math.sin(math.radians(ang))
-        w = max(3, int(5 * s))
-        d.ellipse([px - w / 2, py - w / 2, px + w / 2, py + w / 2], fill=(77, 163, 255, 87))
-    img.alpha_composite(layer)
-
-
-def _paste_petal(img: Image.Image, angle: float, scale: float, stops: list, alpha: int = 255):
-    """单片花瓣：局部渐变 + 形状遮罩 → 旋转 → 贴合到花心。"""
-    poly = _petal_polygon(scale)
-    xs = [p[0] for p in poly]
-    ys = [p[1] for p in poly]
-    x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
-    pad = 4
-    W, H = int(x1 - x0) + pad * 2, int(y1 - y0) + pad * 2
-
-    # 轴向渐变（局部坐标 y: 顶部=尖 → 底部=根）
-    tile = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    td = ImageDraw.Draw(tile)
-    for y in range(H):
-        t = y / max(1, H - 1)
-        td.line([(0, y), (W, y)], fill=_grad_color(stops, t) + (alpha,))
-
-    # 形状遮罩（多边形 + 轻微模糊抗锯齿）
-    mask = Image.new("L", (W, H), 0)
-    ImageDraw.Draw(mask).polygon(
-        [(x - x0 + pad, y - y0 + pad) for x, y in poly], fill=255
-    )
-    mask = mask.filter(ImageFilter.GaussianBlur(1.0))
-    tile.putalpha(Image.composite(mask, Image.new("L", (W, H), 0), tile.getchannel("A")))
-
-    rot = tile.rotate(angle, resample=Image.BICUBIC, expand=True)
-    # 贴合：花瓣局部中心（花心原点 (0,0) 在 (−x0+pad, −y0+pad)）
-    ox, oy = -x0 + pad, -y0 + pad
-    px = int(img.size[0] / 2 - ox)
-    py = int(img.size[1] / 2 - oy)
-    img.alpha_composite(rot, (px, py))
-
-
-def _gold_core(img: Image.Image, r_unit: float):
-    """金蕊：光晕 + 主体径向渐变 + 描边 + 高光。"""
-    N = img.size[0]
-    s = N / 512
-    cx = cy = N / 2
-    # 光晕
-    glow = Image.new("RGBA", (N, N), (0, 0, 0, 0))
-    gd = ImageDraw.Draw(glow)
-    for r in range(int(86 * s), 0, -2):
-        t = 1 - r / (86 * s)
-        a = int(140 * (1 - t) ** 2)
-        gd.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(255, 200, 60, a))
-    glow = glow.filter(ImageFilter.GaussianBlur(6 * s))
-    img.alpha_composite(glow)
-    # 主体
-    stops = [(0.0, _hex("#fff3c4")), (0.45, _hex("#ffd700")), (1.0, _hex("#f08c00"))]
-    core = Image.new("RGBA", (N, N), (0, 0, 0, 0))
+def _gold_core(img: Image.Image, radius_unit: float):
+    """中心金点（阿赖耶识自性）：径向渐变圆 + 暗金描边 + 高光。"""
+    n = img.size[0]
+    s = n / 512
+    cx = cy = n / 2
+    R = radius_unit * s
+    stops = [(0.0, _hex("#fff3c4")), (0.45, _hex("#ffd700")), (1.0, _hex("#e8940a"))]
+    core = Image.new("RGBA", (n, n), (0, 0, 0, 0))
     cd = ImageDraw.Draw(core)
-    R = r_unit * s
     for r in range(int(R), 0, -1):
         t = 1 - r / R
-        cd.ellipse([cx - r, cy - r, cx + r, cy + r], fill=_grad_color(stops, t) + (255,))
-    cd.ellipse([cx - R, cy - R, cx + R, cy + R], outline=(184, 134, 11, 153),
-               width=max(1, int(1.6 * s)))
-    # 高光
-    hl = Image.new("RGBA", (int(40 * s), int(30 * s)), (0, 0, 0, 0))
-    ImageDraw.Draw(hl).ellipse([0, 0, hl.size[0] - 1, hl.size[1] - 1], fill=(255, 255, 255, 140))
-    hl = hl.rotate(32, expand=True).filter(ImageFilter.GaussianBlur(2 * s))
+        cd.ellipse([cx - r, cy - r, cx + r, cy + r], fill=_grad(stops, t) + (255,))
+    cd.ellipse(
+        [cx - R, cy - R, cx + R, cy + R],
+        outline=(184, 134, 11, 166),
+        width=max(1, int(2 * s)),
+    )
+    hl_w, hl_h = max(8, int(20 * s)), max(6, int(14 * s))
+    hl = Image.new("RGBA", (hl_w * 2, hl_h * 2), (0, 0, 0, 0))
+    ImageDraw.Draw(hl).ellipse([hl_w // 2, hl_h // 2, hl_w * 3 // 2, hl_h * 3 // 2], fill=(255, 255, 255, 140))
+    hl = hl.rotate(32, resample=Image.BICUBIC).filter(ImageFilter.GaussianBlur(max(1, int(2 * s))))
     img.alpha_composite(core)
-    img.alpha_composite(hl, (int(cx - 18 * s), int(cy - 22 * s)))
+    img.alpha_composite(hl, (int(cx - 12 * s), int(cy - 16 * s)))
 
 
-# ── 主图 & 小尺寸变体 ──────────────────────────────────────────────────
-def render_master(n: int = RENDER_N) -> Image.Image:
-    img = Image.new("RGBA", (n, n), (0, 0, 0, 0))
-    _bg_rounded_rect(img)
-    _enso(img)
-    outer = [(0.0, _hex("#8fd0ff")), (0.55, _hex("#4da3ff")), (1.0, _hex("#2b6fd4"))]
-    inner = [(0.0, _hex("#d8efff")), (1.0, _hex("#7ec3ff"))]
-    for k in range(8):
-        _paste_petal(img, k * 45, n / 512, outer)
-    for k in range(8):
-        _paste_petal(img, 22.5 + k * 45, 0.66 * n / 512, inner, alpha=230)
-    _gold_core(img, 40)
+def render(master=True) -> Image.Image:
+    small = not master
+    img = Image.new("RGBA", (RENDER_N, RENDER_N), (0, 0, 0, 0))
+    _rounded_bg(img, inset=6 if small else 16, radius=116)
+
+    s = RENDER_N / 512
+    cx = cy = RENDER_N / 2
+
+    draw_layer = Image.new("RGBA", (RENDER_N, RENDER_N), (0, 0, 0, 0))
+    ld = ImageDraw.Draw(draw_layer)
+
+    if master:
+        solid_pts, stroke_pts = _blade_vertices(small)
+        # 腰线细环
+        ring_r = 126 * s
+        ring = Image.new("RGBA", (RENDER_N, RENDER_N), (0, 0, 0, 0))
+        ImageDraw.Draw(ring).ellipse(
+            [cx - ring_r, cy - ring_r, cx + ring_r, cy + ring_r],
+            outline=_hex("#223047") + (255,),
+            width=max(1, int(2 * s)),
+        )
+        img.alpha_composite(ring)
+        # 实心 ×4 正位：四智
+        for ang in (0, 90, 180, 270):
+            poly = [tuple(v * s for v in _rot(x, y, ang)) for x, y in solid_pts]
+            ld.polygon([(cx + x, cy + y) for x, y in poly], fill=_hex("#5aabf5") + (255,))
+        # 描边 ×4 斜位：现行识
+        width_px = max(3, int(13 * s / 2))
+        for ang in (45, 135, 225, 315):
+            poly = [tuple(v * s for v in _rot(x, y, ang)) for x, y in stroke_pts]
+            ld.polygon(
+                [(cx + x, cy + y) for x, y in poly],
+                outline=_hex("#39b7ff") + (255,),
+                width=width_px,
+            )
+        draw_layer = draw_layer.filter(ImageFilter.GaussianBlur(max(0.5, 1.0 * s)))
+    else:
+        # 小变体：全实心、以明度做交替（16px 线条必糊，明度对比稳定）
+        wide_pts = [(0, -68), (42, -128), (0, -198), (-42, -128)]
+        bright = _hex("#7cc4ff")
+        deep = _hex("#2e63a8")
+        for ang in range(0, 360, 45):
+            poly = [tuple(v * s for v in _rot(x, y, ang)) for x, y in wide_pts]
+            ld.polygon([(cx + x, cy + y) for x, y in poly], fill=(bright if ang % 90 == 0 else deep) + (255,))
+    img.alpha_composite(draw_layer)
+
+    _gold_core(img, 52 if small else 34)
     return img.resize((FINAL_N, FINAL_N), Image.LANCZOS)
 
 
-def render_small(n: int = RENDER_N) -> Image.Image:
-    """小尺寸变体：粗长八瓣 + 大金蕊，无禅圆/内层（16px 下高可见度）。"""
-    img = Image.new("RGBA", (n, n), (0, 0, 0, 0))
-    # 收窄底边距，让莲花占满画布
-    s = n / 512
-    d = ImageDraw.Draw(img)
-    stops_bg = [(0.0, _hex("#232e47")), (0.55, _hex("#171e2e")), (1.0, _hex("#0d111c"))]
-    grad = Image.new("RGB", (n, n))
-    gd = ImageDraw.Draw(grad)
-    cx, cy, R = int(n * 0.5), int(n * 0.42), int(n * 0.78)
-    for r in range(R, 0, -2):
-        t = 1 - r / R
-        gd.ellipse([cx - r, cy - r, cx + r, cy + r], fill=_grad_color(stops_bg, t))
-    mask = Image.new("L", (n, n), 0)
-    ImageDraw.Draw(mask).rounded_rectangle([6 * s, 6 * s, 506 * s, 506 * s], radius=116 * s, fill=255)
-    img.paste(grad, (0, 0), mask)
-    d.rounded_rectangle([6 * s, 6 * s, 506 * s, 506 * s], radius=116 * s,
-                        outline=_hex("#2a3450"), width=max(2, int(3 * s)))
-    # 粗长花瓣：tip -200（超出主图禅圆区），宽 ±58
-    segs = [
-        ((0, -200), (46, -150), (58, -84), (58, -34)),
-        ((58, -34), (58, 14), (30, 46), (0, 60)),
-        ((0, 60), (-30, 46), (-58, 14), (-58, -34)),
-        ((-58, -34), (-58, -84), (-46, -150), (0, -200)),
-    ]
-    pts = []
-    for p0, p1, p2, p3 in segs:
-        pts.extend(_bezier(p0, p1, p2, p3))
-    poly = [(x * s, y * s) for x, y in pts]
-    xs, ys = [p[0] for p in poly], [p[1] for p in poly]
-    x0, x1, y0, y1 = min(xs), max(xs), min(ys), max(ys)
-    W, H = int(x1 - x0) + 8, int(y1 - y0) + 8
-    stops = [(0.0, _hex("#8fd0ff")), (0.55, _hex("#4da3ff")), (1.0, _hex("#2b6fd4"))]
-    tile = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    td = ImageDraw.Draw(tile)
-    for y in range(H):
-        td.line([(0, y), (W, y)], fill=_grad_color(stops, y / max(1, H - 1)) + (255,))
-    mask = Image.new("L", (W, H), 0)
-    ImageDraw.Draw(mask).polygon([(x - x0 + 4, y - y0 + 4) for x, y in poly], fill=255)
-    mask = mask.filter(ImageFilter.GaussianBlur(1.0))
-    tile.putalpha(mask)
-    for k in range(8):
-        rot = tile.rotate(k * 45, resample=Image.BICUBIC, expand=True)
-        img.alpha_composite(rot, (int(n / 2 - (-x0 + 4)), int(n / 2 - (-y0 + 4))))
-    _gold_core(img, 66)
-    return img.resize((FINAL_N, FINAL_N), Image.LANCZOS)
+def _write_multi_ico(path: str, images: list) -> None:
+    """手写 ICONDIR 合并多源帧（Pillow 的 append_images 不适用于 ICO）。
+
+    每帧以 PNG 载荷嵌入（Vista+ 完整支持，Win10/11 任务栏正常显示）。
+    """
+    import io
+    import struct
+
+    ordered = sorted(images, key=lambda im: im.size[0])
+    header = struct.pack("<HHH", 0, 1, len(ordered))
+    offset = 6 + 16 * len(ordered)
+    directory = b""
+    payloads = b""
+    for im in ordered:
+        buf = io.BytesIO()
+        im.save(buf, format="PNG")
+        png = buf.getvalue()
+        w, h = im.size
+        directory += struct.pack(
+            "<BBBBHHII",
+            0 if w >= 256 else w,
+            0 if h >= 256 else h,
+            0,  # 调色板色数（PNG 帧不用）
+            0,  # reserved
+            1,  # planes
+            32,  # bpp
+            len(png),
+            offset,
+        )
+        offset += len(png)
+        payloads += png
+    with open(path, "wb") as f:
+        f.write(header + directory + payloads)
 
 
 def main() -> int:
-    master = render_master()
-    small = render_small()
+    master = render(master=True)
+    small = render(master=False)
     master.save(PNG_PATH)
     small.save(PNG_SMALL_PATH)
-    print(f"[render] yogacara.png OK ({FINAL_N}×{FINAL_N}, 程序化矢量渲染)")
+    print(f"[render] yogacara.png OK ({FINAL_N}×{FINAL_N} 八转四主版)")
+    print(f"[render] yogacara_small.png OK ({FINAL_N}×{FINAL_N} 小尺寸变体)")
 
-    master.save(ICO_PATH, sizes=[(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
-    print("[Pillow] yogacara.ico OK（16/32/48 用小尺寸变体）")
+    frames = [small.resize((n, n), Image.LANCZOS) for n in (16, 24, 32, 48)]
+    frames += [master.resize((n, n), Image.LANCZOS) for n in (64, 128, 256)]
+    _write_multi_ico(ICO_PATH, frames)
+    print("[Pillow] yogacara.ico OK：7 帧（≤48←small 明度变体，≥64←master）")
 
     small.resize((32, 32), Image.LANCZOS).save(FAVICON_PATH)
     print("[Pillow] favicon.png OK (32×32)")
-    print("✅ 图标生成完成（纯 Pillow，无原生依赖）")
+    print("✅ 图标生成完成")
     return 0
 
 

@@ -179,35 +179,34 @@
 
 <header>
   <div class="brand">
-    <svg class="logo" viewBox="0 0 512 512" width="32" height="32" aria-label="Yogacara 莲花 Logo">
+    <svg class="logo" viewBox="0 0 512 512" width="32" height="32" aria-label="Yogacara 八转四 Logo">
       <defs>
         <radialGradient id="hbg" cx="50%" cy="42%" r="78%">
-          <stop offset="0%" stop-color="#232e47"/><stop offset="55%" stop-color="#171e2e"/>
-          <stop offset="100%" stop-color="#0d111c"/>
+          <stop offset="0%" stop-color="#1a2334"/><stop offset="100%" stop-color="#0b0f1a"/>
         </radialGradient>
-        <linearGradient id="hpetal" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#8fd0ff"/><stop offset="55%" stop-color="#4da3ff"/>
-          <stop offset="100%" stop-color="#2b6fd4"/>
-        </linearGradient>
         <radialGradient id="hcore" cx="42%" cy="38%" r="70%">
           <stop offset="0%" stop-color="#fff3c4"/><stop offset="45%" stop-color="#ffd700"/>
-          <stop offset="100%" stop-color="#f08c00"/>
+          <stop offset="100%" stop-color="#e8940a"/>
         </radialGradient>
       </defs>
-      <rect x="6" y="6" width="500" height="500" rx="116" fill="url(#hbg)"/>
-      <rect x="6" y="6" width="500" height="500" rx="116" fill="none" stroke="#2a3450" stroke-width="3"/>
-      <g transform="translate(256,256)" fill="url(#hpetal)">
-        <path transform="rotate(0)"   d="M 0 -200 C 46 -150 58 -84 58 -34 C 58 14 30 46 0 60 C -30 46 -58 14 -58 -34 C -58 -84 -46 -150 0 -200 Z"/>
-        <path transform="rotate(45)"  d="M 0 -200 C 46 -150 58 -84 58 -34 C 58 14 30 46 0 60 C -30 46 -58 14 -58 -34 C -58 -84 -46 -150 0 -200 Z"/>
-        <path transform="rotate(90)"  d="M 0 -200 C 46 -150 58 -84 58 -34 C 58 14 30 46 0 60 C -30 46 -58 14 -58 -34 C -58 -84 -46 -150 0 -200 Z"/>
-        <path transform="rotate(135)" d="M 0 -200 C 46 -150 58 -84 58 -34 C 58 14 30 46 0 60 C -30 46 -58 14 -58 -34 C -58 -84 -46 -150 0 -200 Z"/>
-        <path transform="rotate(180)" d="M 0 -200 C 46 -150 58 -84 58 -34 C 58 14 30 46 0 60 C -30 46 -58 14 -58 -34 C -58 -84 -46 -150 0 -200 Z"/>
-        <path transform="rotate(225)" d="M 0 -200 C 46 -150 58 -84 58 -34 C 58 14 30 46 0 60 C -30 46 -58 14 -58 -34 C -58 -84 -46 -150 0 -200 Z"/>
-        <path transform="rotate(270)" d="M 0 -200 C 46 -150 58 -84 58 -34 C 58 14 30 46 0 60 C -30 46 -58 14 -58 -34 C -58 -84 -46 -150 0 -200 Z"/>
-        <path transform="rotate(315)" d="M 0 -200 C 46 -150 58 -84 58 -34 C 58 14 30 46 0 60 C -30 46 -58 14 -58 -34 C -58 -84 -46 -150 0 -200 Z"/>
+      <rect x="8" y="8" width="496" height="496" rx="116" fill="url(#hbg)"/>
+      <g transform="translate(256,256)">
+        <g fill="#7cc4ff">
+          <polygon points="0,-68 42,-128 0,-198 -42,-128" transform="rotate(0)"/>
+          <polygon points="0,-68 42,-128 0,-198 -42,-128" transform="rotate(90)"/>
+          <polygon points="0,-68 42,-128 0,-198 -42,-128" transform="rotate(180)"/>
+          <polygon points="0,-68 42,-128 0,-198 -42,-128" transform="rotate(270)"/>
+        </g>
+        <g fill="#2e63a8">
+          <polygon points="0,-68 42,-128 0,-198 -42,-128" transform="rotate(45)"/>
+          <polygon points="0,-68 42,-128 0,-198 -42,-128" transform="rotate(135)"/>
+          <polygon points="0,-68 42,-128 0,-198 -42,-128" transform="rotate(225)"/>
+          <polygon points="0,-68 42,-128 0,-198 -42,-128" transform="rotate(315)"/>
+        </g>
+        <circle cx="0" cy="0" r="52" fill="url(#hcore)"/>
+        <ellipse cx="-13" cy="-15" rx="14" ry="10" fill="#ffffff" opacity="0.5"
+                 transform="rotate(-32 -13 -15)"/>
       </g>
-      <circle cx="256" cy="256" r="66" fill="url(#hcore)"/>
-      <ellipse cx="238" cy="236" rx="18" ry="12" fill="#ffffff" opacity="0.5" transform="rotate(-32 238 236)"/>
     </svg>
     <div class="brand-text">
       <h1>唯识进化框架</h1>

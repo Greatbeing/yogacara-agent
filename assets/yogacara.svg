@@ -1,95 +1,47 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Yogacara 「八转四」Logo · 主版
+       8 枚菱形刀刃 = 八识；实心×4 = 已转成的四智；描边×4 = 在转的现行识；
+       中心金点 = 阿赖耶识自性 -->
   <defs>
-    <!-- 背景径向渐变：中心稍亮 -->
-    <radialGradient id="bg" cx="50%" cy="42%" r="75%">
-      <stop offset="0%" stop-color="#232e47"/>
-      <stop offset="55%" stop-color="#171e2e"/>
-      <stop offset="100%" stop-color="#0d111c"/>
+    <radialGradient id="bg" cx="50%" cy="42%" r="78%">
+      <stop offset="0%" stop-color="#1a2334"/>
+      <stop offset="55%" stop-color="#121828"/>
+      <stop offset="100%" stop-color="#0b0f1a"/>
     </radialGradient>
-    <!-- 花瓣主渐变（沿花瓣轴：尖亮→根深） -->
-    <linearGradient id="petalOuter" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#8fd0ff"/>
-      <stop offset="55%" stop-color="#4da3ff"/>
-      <stop offset="100%" stop-color="#2b6fd4"/>
-    </linearGradient>
-    <!-- 内层高光花瓣 -->
-    <linearGradient id="petalInner" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#d8efff"/>
-      <stop offset="100%" stop-color="#7ec3ff"/>
-    </linearGradient>
-    <!-- 金蕊径向渐变 -->
-    <radialGradient id="core" cx="42%" cy="38%" r="70%">
+    <radialGradient id="coreGrad" cx="42%" cy="38%" r="70%">
       <stop offset="0%" stop-color="#fff3c4"/>
       <stop offset="45%" stop-color="#ffd700"/>
-      <stop offset="100%" stop-color="#f08c00"/>
-    </radialGradient>
-    <!-- 蕊外光晕 -->
-    <radialGradient id="coreGlow" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#ffd700" stop-opacity="0.55"/>
-      <stop offset="60%" stop-color="#ffb300" stop-opacity="0.18"/>
-      <stop offset="100%" stop-color="#ffb300" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#e8940a"/>
     </radialGradient>
   </defs>
 
-  <!-- Win11 风格圆角方形底 -->
   <rect x="16" y="16" width="480" height="480" rx="112" fill="url(#bg)"/>
   <rect x="16" y="16" width="480" height="480" rx="112" fill="none"
-        stroke="#2a3450" stroke-width="2.5"/>
-  <!-- 内侧细高光线（顶缘 1px 感） -->
-  <rect x="22" y="22" width="468" height="468" rx="106" fill="none"
-        stroke="#3d4a6b" stroke-width="1.2" opacity="0.55"/>
+        stroke="#2a3450" stroke-width="3"/>
 
-  <!-- 禅圆 ensō：约 336° 弧，缺口在右上（修行未尽之意） -->
   <g transform="translate(256,256)">
-    <path d="M 158 -14 A 159 159 0 1 1 96 127"
-          fill="none" stroke="#4da3ff" stroke-width="5"
-          stroke-linecap="round" opacity="0.34"/>
+    <!-- 腰线细环：构造感细节（大尺寸可见） -->
+    <circle cx="0" cy="0" r="126" fill="none" stroke="#223047" stroke-width="2"/>
 
-    <!-- ── 外层八瓣（八识）── 泪滴形，45° 均分 -->
-    <g>
-      <g transform="rotate(0)"><use href="#petal"/></g>
-      <g transform="rotate(45)"><use href="#petal"/></g>
-      <g transform="rotate(90)"><use href="#petal"/></g>
-      <g transform="rotate(135)"><use href="#petal"/></g>
-      <g transform="rotate(180)"><use href="#petal"/></g>
-      <g transform="rotate(225)"><use href="#petal"/></g>
-      <g transform="rotate(270)"><use href="#petal"/></g>
-      <g transform="rotate(315)"><use href="#petal"/></g>
+    <!-- 实心刀刃 ×4（正位）：转成的四智 -->
+    <g fill="#5aabf5">
+      <polygon points="0,-58 25,-126 0,-192 -25,-126" transform="rotate(0)"/>
+      <polygon points="0,-58 25,-126 0,-192 -25,-126" transform="rotate(90)"/>
+      <polygon points="0,-58 25,-126 0,-192 -25,-126" transform="rotate(180)"/>
+      <polygon points="0,-58 25,-126 0,-192 -25,-126" transform="rotate(270)"/>
+    </g>
+    <!-- 描边刀刃 ×4（斜位）：仍在流转的四识 -->
+    <g fill="none" stroke="#39b7ff" stroke-width="13">
+      <polygon points="0,-58 25,-126 0,-192 -25,-126" transform="rotate(45)"/>
+      <polygon points="0,-58 25,-126 0,-192 -25,-126" transform="rotate(135)"/>
+      <polygon points="0,-58 25,-126 0,-192 -25,-126" transform="rotate(225)"/>
+      <polygon points="0,-58 25,-126 0,-192 -25,-126" transform="rotate(315)"/>
     </g>
 
-    <!-- ── 内层高光花瓣（0.66 缩放，提层次）── -->
-    <g opacity="0.9" transform="scale(0.66)">
-      <g transform="rotate(22.5)"><use href="#petalHi"/></g>
-      <g transform="rotate(67.5)"><use href="#petalHi"/></g>
-      <g transform="rotate(112.5)"><use href="#petalHi"/></g>
-      <g transform="rotate(157.5)"><use href="#petalHi"/></g>
-      <g transform="rotate(202.5)"><use href="#petalHi"/></g>
-      <g transform="rotate(247.5)"><use href="#petalHi"/></g>
-      <g transform="rotate(292.5)"><use href="#petalHi"/></g>
-      <g transform="rotate(337.5)"><use href="#petalHi"/></g>
-    </g>
-
-    <!-- 金蕊（转依之智）-->
-    <circle cx="0" cy="0" r="86" fill="url(#coreGlow)"/>
-    <circle cx="0" cy="0" r="40" fill="url(#core)"/>
-    <circle cx="0" cy="0" r="40" fill="none" stroke="#b8860b" stroke-width="1.6" opacity="0.6"/>
-    <!-- 高光点 -->
-    <ellipse cx="-11" cy="-13" rx="12" ry="9" fill="#ffffff" opacity="0.55" transform="rotate(-32 -11 -13)"/>
+    <!-- 金蕊 -->
+    <circle cx="0" cy="0" r="34" fill="url(#coreGrad)"/>
+    <circle cx="0" cy="0" r="34" fill="none" stroke="#b8860b" stroke-width="2" opacity="0.65"/>
+    <ellipse cx="-9" cy="-10" rx="10" ry="7" fill="#ffffff" opacity="0.55"
+             transform="rotate(-32 -9 -10)"/>
   </g>
-
-  <!-- 花瓣定义（供 use 引用）：泪滴形，尖朝上，根在下方 -->
-  <defs>
-    <path id="petal" d="M 0 -168
-      C 30 -138 40 -96 40 -58
-      C 40 -18 22 8 0 24
-      C -22 8 -40 -18 -40 -58
-      C -40 -96 -30 -138 0 -168 Z"
-      fill="url(#petalOuter)"/>
-    <path id="petalHi" d="M 0 -168
-      C 30 -138 40 -96 40 -58
-      C 40 -18 22 8 0 24
-      C -22 8 -40 -18 -40 -58
-      C -40 -96 -30 -138 0 -168 Z"
-      fill="url(#petalInner)"/>
-  </defs>
 </svg>
