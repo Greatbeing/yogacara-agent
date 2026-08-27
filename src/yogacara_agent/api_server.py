@@ -326,7 +326,7 @@ async def evolution_snapshots(limit: int = Query(default=100, ge=1, le=200)):
 @app.post("/api/evolution/snapshot", tags=["ui"])
 async def trigger_evolution_snapshot():
     session = _get_session()
-    return {"status": "ok", "snapshot": _evolution_tracker.snapshot(session["alaya"]) }
+    return {"status": "ok", "snapshot": _evolution_tracker.snapshot(session["alaya"])}
 
 
 @app.get("/api/awakening/status", tags=["ui"])
@@ -524,7 +524,9 @@ async def run_episode(req: AgentRequest, request: Request):
                 "klesha": {"greed": 0.0, "aversion": 0.0, "delusion": 0.0},
             }
 
-            final_state = await _get_graph().ainvoke(init_state)
+            from yogacara_agent.yogacara_langgraph import graph_config
+
+            final_state = await _get_graph().ainvoke(init_state, config=graph_config(step_limit))
 
         # Collect result
         steps_taken = final_state.get("step", 0)
@@ -536,12 +538,16 @@ async def run_episode(req: AgentRequest, request: Request):
         duration_ms = int((time.monotonic() - t0) * 1000)
         intro_logger = session.get("introspection")
         ego_monitor = session.get("ego_monitor")
-        recent_intro = intro_logger.recent_summary(n=20) if intro_logger and hasattr(intro_logger, "recent_summary") else {}
+        recent_intro = (
+            intro_logger.recent_summary(n=20) if intro_logger and hasattr(intro_logger, "recent_summary") else {}
+        )
         nature_dist = recent_intro.get("nature_distribution", {}) if isinstance(recent_intro, dict) else {}
         round_real = nature_dist.get("圆成实", 0)
         total_natures = sum(nature_dist.values()) or 1
         mirror_ratio = round_real / total_natures
-        wisdom_report = ego_monitor.four_wisdoms_report(intro_logger=intro_logger, mirror_ratio=mirror_ratio) if ego_monitor else {}
+        wisdom_report = (
+            ego_monitor.four_wisdoms_report(intro_logger=intro_logger, mirror_ratio=mirror_ratio) if ego_monitor else {}
+        )
 
         session["metrics"] = {"wisdom": wisdom_report}
         session["last_run"] = {
@@ -563,9 +569,7 @@ async def run_episode(req: AgentRequest, request: Request):
             seed_id=seed_id,
             duration_ms=duration_ms,
             planner_source=final_state.get("planner_source", "heuristic"),
-            turning_level=(
-                (final_state.get("turning_result") or {}).get("turning_level")
-            ),
+            turning_level=((final_state.get("turning_result") or {}).get("turning_level")),
             vitality=final_state.get("vitality"),
             death_cause=final_state.get("death_cause") or None,
             lifetime=ylg.current_lifetime(),

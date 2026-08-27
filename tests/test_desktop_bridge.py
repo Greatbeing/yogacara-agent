@@ -23,11 +23,25 @@ class TestAgentBridgeStep:
         b = self._bridge()
         snap = b.step_once()
         required = {
-            "running", "paused", "done", "step", "step_limit",
-            "pos", "resources", "traps", "path",
-            "action", "reward", "unc", "cumulative_reward",
-            "manas_passed", "seeds_total", "seed_types",
-            "four_wisdom", "turning", "logs",
+            "running",
+            "paused",
+            "done",
+            "step",
+            "step_limit",
+            "pos",
+            "resources",
+            "traps",
+            "path",
+            "action",
+            "reward",
+            "unc",
+            "cumulative_reward",
+            "manas_passed",
+            "seeds_total",
+            "seed_types",
+            "four_wisdom",
+            "turning",
+            "logs",
         }
         missing = required - set(snap.keys())
         assert not missing, f"Snapshot missing keys: {missing}"

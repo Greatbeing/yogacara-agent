@@ -141,9 +141,7 @@ class TestKlesha:
         obs = {"pos": (5, 5), "grid_view": [0.0] * 9, "step": 1}
         obs["grid_view"][1] = 1.0  # UP 方向资源
         scores = {"UP": 0.2, "DOWN": 0.3, "LEFT": 0.25, "RIGHT": 0.25, "STAY": 0.1}
-        modulated, best = ylg._apply_klesha_modulation(
-            scores, obs, {"greed": 1.0, "aversion": 0.0, "delusion": 0.0}
-        )
+        modulated, best = ylg._apply_klesha_modulation(scores, obs, {"greed": 1.0, "aversion": 0.0, "delusion": 0.0})
         assert best == "UP", f"高贪应趋近资源，实际选 {best}"
         assert modulated["UP"] > scores["UP"]
 
@@ -152,18 +150,14 @@ class TestKlesha:
         obs = {"pos": (5, 5), "grid_view": [0.0] * 9, "step": 1}
         obs["grid_view"][7] = -1.0  # DOWN 方向陷阱
         scores = {"UP": 0.1, "DOWN": 0.5, "LEFT": 0.2, "RIGHT": 0.2, "STAY": 0.05}
-        modulated, best = ylg._apply_klesha_modulation(
-            scores, obs, {"greed": 0.0, "aversion": 1.0, "delusion": 0.0}
-        )
+        modulated, best = ylg._apply_klesha_modulation(scores, obs, {"greed": 0.0, "aversion": 1.0, "delusion": 0.0})
         assert best != "DOWN", "高嗔应回避陷阱方向"
         assert modulated["DOWN"] < scores["DOWN"]
 
     def test_zero_klesha_no_change(self):
         obs = {"pos": (0, 0), "grid_view": [0.0] * 9, "step": 0}
         scores = {"UP": 1.0, "DOWN": 0.5}
-        modulated, best = ylg._apply_klesha_modulation(
-            scores, obs, {"greed": 0.0, "aversion": 0.0, "delusion": 0.0}
-        )
+        modulated, best = ylg._apply_klesha_modulation(scores, obs, {"greed": 0.0, "aversion": 0.0, "delusion": 0.0})
         assert modulated == scores and best == "UP"
 
     def test_turning_reduces_klesha(self):
@@ -241,8 +235,15 @@ class TestDeathDream:
         before = len(ylg.alaya.seeds)
         for i in range(n_seeds):
             ylg.alaya.seeds.append(
-                {"act": "UP" if i % 2 else "DOWN", "rew": 2.0 + i * 0.1, "imp": 0.9,
-                 "emb": list(_emb), "seed_type": "业种", "tag": "梦测", "ts": 0.0}
+                {
+                    "act": "UP" if i % 2 else "DOWN",
+                    "rew": 2.0 + i * 0.1,
+                    "imp": 0.9,
+                    "emb": list(_emb),
+                    "seed_type": "业种",
+                    "tag": "梦测",
+                    "ts": 0.0,
+                }
             )
         return _state(action="DOWN", vitality=vitality), before
 
@@ -317,8 +318,16 @@ class TestLifeHistory:
             history = ylg.get_life_history()
             assert len(history) == history_before + 1, "命终应记录一世"
             rec = history[-1]
-            for key in ("lifetime", "steps", "reward", "death_cause",
-                        "turning_level", "klesha", "dream_seeds", "seeds_total"):
+            for key in (
+                "lifetime",
+                "steps",
+                "reward",
+                "death_cause",
+                "turning_level",
+                "klesha",
+                "dream_seeds",
+                "seeds_total",
+            ):
                 assert key in rec, f"轮回史缺 {key}"
             assert rec["death_cause"] == "寿元耗尽"
             assert rec["lifetime"] >= 1

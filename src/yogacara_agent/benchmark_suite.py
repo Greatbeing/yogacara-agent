@@ -40,7 +40,9 @@ def _latest_summary_file(output_dir: Path) -> Path | None:
 
 
 class MetricAggregator:
-    def aggregate(self, stats_by_seed: list[pd.DataFrame], episode_results: list[dict[str, Any]], config: BenchmarkConfig) -> dict[str, Any]:
+    def aggregate(
+        self, stats_by_seed: list[pd.DataFrame], episode_results: list[dict[str, Any]], config: BenchmarkConfig
+    ) -> dict[str, Any]:
         combined = pd.concat(stats_by_seed, ignore_index=True) if stats_by_seed else pd.DataFrame()
         if combined.empty:
             return {
@@ -57,7 +59,9 @@ class MetricAggregator:
         ci_delta = 1.96 * std_reward / np.sqrt(episode_count)
         resource_found_rate = 0.0
         if episode_results:
-            resource_found_rate = float(sum(1 for item in episode_results if item.get("resources_found", 0) > 0) / len(episode_results))
+            resource_found_rate = float(
+                sum(1 for item in episode_results if item.get("resources_found", 0) > 0) / len(episode_results)
+            )
         return {
             "cumulative_reward": {
                 "mean": round(mean_reward, 4),
@@ -66,10 +70,15 @@ class MetricAggregator:
                 "ci_upper": round(mean_reward + ci_delta, 4),
             },
             "resource_found_rate": round(resource_found_rate, 4),
-            "manas_intercept_rate": round(float(combined.get("intercept_rate", pd.Series(dtype=float)).mean() or 0.0), 4),
+            "manas_intercept_rate": round(
+                float(combined.get("intercept_rate", pd.Series(dtype=float)).mean() or 0.0), 4
+            ),
             "avg_steps": round(float(combined["step"].mean()), 4),
             # 每步收益 = 最大步处的累计均值 / 步数（均值除均值会低估长轮次贡献）
-            "reward_per_step": round(float(combined.loc[combined["step"].idxmax(), "mean_reward"]) / max(1.0, float(combined["step"].max())), 4),
+            "reward_per_step": round(
+                float(combined.loc[combined["step"].idxmax(), "mean_reward"]) / max(1.0, float(combined["step"].max())),
+                4,
+            ),
             "wisdom": {},
         }
 

@@ -11,7 +11,9 @@ class ObservationNormalizer:
     def normalize_grid(self, grid_view) -> np.ndarray:
         return np.asarray(grid_view, dtype=np.float32).reshape(-1)
 
-    def normalize_continuous(self, values, mode: str = "zscore", bounds: list[tuple[float, float]] | None = None) -> np.ndarray:
+    def normalize_continuous(
+        self, values, mode: str = "zscore", bounds: list[tuple[float, float]] | None = None
+    ) -> np.ndarray:
         arr = np.asarray(values, dtype=np.float32).reshape(-1)
         if mode == "minmax" and bounds:
             scaled = []
@@ -27,4 +29,9 @@ class ObservationNormalizer:
 
     def metadata(self, values: np.ndarray) -> dict[str, Any]:
         arr = np.asarray(values)
-        return {"shape": list(arr.shape), "dtype": str(arr.dtype), "low": arr.min().tolist() if arr.size else [], "high": arr.max().tolist() if arr.size else []}
+        return {
+            "shape": list(arr.shape),
+            "dtype": str(arr.dtype),
+            "low": arr.min().tolist() if arr.size else [],
+            "high": arr.max().tolist() if arr.size else [],
+        }

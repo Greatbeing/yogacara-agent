@@ -127,6 +127,7 @@ class TestHybridCircuitBreaker:
         self._failing_planner(monkeypatch)
         ylg._llm_circuit["disabled_until"] = _time.time() + 60.0
         calls = []
+
         # 即使 step 满足间隔，熔断期间也不应触碰 planner（换成计数 planner 验证）
         class Counting:
             model = "c"

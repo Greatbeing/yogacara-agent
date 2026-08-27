@@ -72,6 +72,7 @@ class TestGraphNodes:
                 "step_limit": 60,
             }
             import asyncio
+
             result = asyncio.run(node_perceive(state))
             assert len(result["seeds"]) > 0, "Should retrieve seeds"
             # 空库 + 单个当前位置种子：检索结果第一位必为刚存入的 RIGHT
@@ -155,7 +156,7 @@ class TestGraphExecution:
 
     def test_full_graph_short_episode(self):
         """测试完整图执行 5 步"""
-        from yogacara_agent.yogacara_langgraph import build_graph, env
+        from yogacara_agent.yogacara_langgraph import build_graph, env, graph_config
 
         graph = build_graph()
         init_state = {
@@ -181,7 +182,7 @@ class TestGraphExecution:
         }
         import asyncio
 
-        final = asyncio.run(graph.ainvoke(init_state))
+        final = asyncio.run(graph.ainvoke(init_state, config=graph_config(init_state.get("step_limit"))))
         assert final["step"] == 5, f"Expected 5 steps, got {final['step']}"
         assert final["done"] is True, "Should be done after step_limit"
         assert len(final["recent_rewards"]) == 5, f"Expected 5 rewards, got {len(final['recent_rewards'])}"

@@ -15,8 +15,22 @@ def test_benchmark_runner_writes_report(tmp_path, monkeypatch):
     async def fake_run_all(self):
         self.last_stats = pd.DataFrame(
             [
-                {"step": 1, "mean_reward": 1.0, "std_reward": 0.0, "intercept_rate": 0.0, "ci_lower": 1.0, "ci_upper": 1.0},
-                {"step": 2, "mean_reward": 2.0, "std_reward": 0.0, "intercept_rate": 0.5, "ci_lower": 2.0, "ci_upper": 2.0},
+                {
+                    "step": 1,
+                    "mean_reward": 1.0,
+                    "std_reward": 0.0,
+                    "intercept_rate": 0.0,
+                    "ci_lower": 1.0,
+                    "ci_upper": 1.0,
+                },
+                {
+                    "step": 2,
+                    "mean_reward": 2.0,
+                    "std_reward": 0.0,
+                    "intercept_rate": 0.5,
+                    "ci_lower": 2.0,
+                    "ci_upper": 2.0,
+                },
             ]
         )
         self.last_results = [{"resources_found": 1}, {"resources_found": 0}]
@@ -40,7 +54,9 @@ def test_history_compare(tmp_path):
     base = Path(tmp_path)
     previous = base / "20260101-000000"
     previous.mkdir(parents=True)
-    (previous / "summary.json").write_text('{"run_id":"20260101-000000","metrics":{"cumulative_reward":{"mean":1.0}}}', encoding="utf-8")
+    (previous / "summary.json").write_text(
+        '{"run_id":"20260101-000000","metrics":{"cumulative_reward":{"mean":1.0}}}', encoding="utf-8"
+    )
 
     current = base / "20260102-000000"
     current.mkdir(parents=True)

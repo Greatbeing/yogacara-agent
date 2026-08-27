@@ -80,10 +80,10 @@ class TestAdapters:
         ]
         t_seeds, indices = ylg._to_turning_seeds(seeds)
         assert indices == [0, 1, 2]
-        assert t_seeds[0].is_defiled is False          # 普通 tag 无"遍计"
-        assert t_seeds[0].clarity == 0.85              # 非 vipaka → clarity = align
-        assert t_seeds[1].is_defiled is True           # tag 含"遍计" → 染污
-        assert t_seeds[2].is_defiled is False          # 异熟种非染污
+        assert t_seeds[0].is_defiled is False  # 普通 tag 无"遍计"
+        assert t_seeds[0].clarity == 0.85  # 非 vipaka → clarity = align
+        assert t_seeds[1].is_defiled is True  # tag 含"遍计" → 染污
+        assert t_seeds[2].is_defiled is False  # 异熟种非染污
         assert t_seeds[2].clarity == VIPAKA_FUNCTIONAL_CLARITY  # 异熟种受保护
 
     def test_reward_context_wiring(self):
@@ -104,11 +104,20 @@ class TestTurningIntegration:
         state = asyncio.run(_one_cycle(_init_state()))
         tr = state["turning_result"]
         assert tr is not None, "node_consolidate 应写入 turning_result"
-        for key in ("mirror", "equality", "observation", "action", "turning_level",
-                    "defiled_removed", "ego_dissolved", "insights"):
+        for key in (
+            "mirror",
+            "equality",
+            "observation",
+            "action",
+            "turning_level",
+            "defiled_removed",
+            "ego_dissolved",
+            "insights",
+        ):
             assert key in tr, f"缺少字段 {key}"
         # JSON 可序列化（无 numpy 标量）
         import json
+
         json.dumps(tr)
         # 数值范围合理
         for k in ("mirror", "equality", "observation", "action", "turning_level"):
@@ -122,10 +131,38 @@ class TestTurningIntegration:
         _emb = [0.0] * 11  # retrieve() 需要 emb 字段（11 维）
         ylg.alaya.seeds.extend(
             [
-                {"act": "LEFT", "rew": -0.1, "align": 0.50, "seed_type": "名言种", "tag": "名言_遍计", "emb": list(_emb)},
-                {"act": "RIGHT", "rew": -0.1, "align": 0.45, "seed_type": "名言种", "tag": "名言_遍计", "emb": list(_emb)},
-                {"act": "UP", "rew": -0.1, "align": 0.25, "seed_type": "异熟种", "tag": "异熟_连续失败", "emb": list(_emb)},
-                {"act": "DOWN", "rew": 5.0, "align": 0.85, "seed_type": "业种", "tag": "业_正反馈_DOWN", "emb": list(_emb)},
+                {
+                    "act": "LEFT",
+                    "rew": -0.1,
+                    "align": 0.50,
+                    "seed_type": "名言种",
+                    "tag": "名言_遍计",
+                    "emb": list(_emb),
+                },
+                {
+                    "act": "RIGHT",
+                    "rew": -0.1,
+                    "align": 0.45,
+                    "seed_type": "名言种",
+                    "tag": "名言_遍计",
+                    "emb": list(_emb),
+                },
+                {
+                    "act": "UP",
+                    "rew": -0.1,
+                    "align": 0.25,
+                    "seed_type": "异熟种",
+                    "tag": "异熟_连续失败",
+                    "emb": list(_emb),
+                },
+                {
+                    "act": "DOWN",
+                    "rew": 5.0,
+                    "align": 0.85,
+                    "seed_type": "业种",
+                    "tag": "业_正反馈_DOWN",
+                    "emb": list(_emb),
+                },
             ]
         )
         try:

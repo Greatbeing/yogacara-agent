@@ -29,7 +29,9 @@ def parse_args():
 
 
 class ExperimentAutomator:
-    def __init__(self, num_episodes: int = 30, max_steps: int = 60, output_dir: str = "./experiments", seed: int | None = None):
+    def __init__(
+        self, num_episodes: int = 30, max_steps: int = 60, output_dir: str = "./experiments", seed: int | None = None
+    ):
         self.num_episodes = num_episodes
         self.max_steps = max_steps
         self.output_dir = output_dir

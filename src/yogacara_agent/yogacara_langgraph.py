@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import logging
 import os
@@ -78,9 +80,9 @@ class YogacaraState(TypedDict):
     pos_history: list[tuple[int, int]]
     metrics: dict[str, float]
     # 转识成智新增字段
-    introspection_record: "_IntrospectionRecordData | None"
+    introspection_record: _IntrospectionRecordData | None
     ego_alert: dict | None
-    plan_scores: "dict[str, float] | None"
+    plan_scores: dict[str, float] | None
     reasoning: str
     steps_since_resource: int  # 探索力重置计数器
     steps_at_same_pos: int  # 连续停留计数器（正确实现is_stuck检测）
@@ -354,11 +356,7 @@ def _get_llm_planner():
     _llm_enabled_checked = True
     if os.environ.get("YOGACARA_LLM_PLAN", "0") != "1":
         return None
-    api_key = (
-        os.environ.get("LLM_API_KEY")
-        or os.environ.get("OPENAI_API_KEY")
-        or os.environ.get("OPENROUTER_API_KEY")
-    )
+    api_key = os.environ.get("LLM_API_KEY") or os.environ.get("OPENAI_API_KEY") or os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
         logger.warning("[HybridPlan] YOGACARA_LLM_PLAN=1 但未配置 LLM_API_KEY，保持启发式")
         return None
@@ -381,9 +379,7 @@ def _reset_llm_circuit() -> None:
     _llm_circuit["disabled_until"] = 0.0
 
 
-def _hybrid_plan(
-    state: YogacaraState, heur_action: str, heur_unc: float
-) -> tuple[str, float, str, str]:
+def _hybrid_plan(state: YogacaraState, heur_action: str, heur_unc: float) -> tuple[str, float, str, str]:
     """启发式为基线；满足门控/节流/熔断时用 LLM 覆盖动作。
 
     Returns:
@@ -413,10 +409,7 @@ def _hybrid_plan(
         _llm_circuit["fails"] += 1
         if _llm_circuit["fails"] >= LLM_CIRCUIT_THRESHOLD:
             _llm_circuit["disabled_until"] = time.time() + LLM_CIRCUIT_COOLDOWN_S
-            logger.warning(
-                f"[HybridPlan] LLM 连续失败 {LLM_CIRCUIT_THRESHOLD} 次，"
-                f"熔断 {LLM_CIRCUIT_COOLDOWN_S:.0f}s"
-            )
+            logger.warning(f"[HybridPlan] LLM 连续失败 {LLM_CIRCUIT_THRESHOLD} 次，熔断 {LLM_CIRCUIT_COOLDOWN_S:.0f}s")
         return heur_action, heur_unc, "", "heuristic"
 
 
@@ -492,9 +485,7 @@ async def node_perceive(state: YogacaraState) -> YogacaraState:
     return state
 
 
-def _apply_klesha_modulation(
-    scores: dict[str, float], obs: dict, klesha: dict | None
-) -> tuple[dict[str, float], str]:
+def _apply_klesha_modulation(scores: dict[str, float], obs: dict, klesha: dict | None) -> tuple[dict[str, float], str]:
     """贪嗔痴对候选动作分数的调制（根本烦恼扭曲决策）。
 
     贪（greed）: 放大对可见资源的趋近分
@@ -724,16 +715,13 @@ async def node_execute(state: YogacaraState) -> YogacaraState:
     # ── 贪嗔痴心所更新 ───────────────────────────────────────────
     k = state.get("klesha") or {"greed": 0.0, "aversion": 0.0, "delusion": 0.0}
     k["greed"] = min(
-        1.0, k.get("greed", 0.0) * KLESHA_DECAY
-        + (KLESHA_GREED_GAIN if rew >= RESOURCE_THRESHOLD else 0.0)
+        1.0, k.get("greed", 0.0) * KLESHA_DECAY + (KLESHA_GREED_GAIN if rew >= RESOURCE_THRESHOLD else 0.0)
     )
     k["aversion"] = min(
-        1.0, k.get("aversion", 0.0) * KLESHA_DECAY
-        + (KLESHA_AVERSION_GAIN if rew <= TRAP_REWARD + 1.0 else 0.0)
+        1.0, k.get("aversion", 0.0) * KLESHA_DECAY + (KLESHA_AVERSION_GAIN if rew <= TRAP_REWARD + 1.0 else 0.0)
     )
     k["delusion"] = min(
-        1.0, (1.0 - KLESHA_DELUSION_ALPHA) * k.get("delusion", 0.0)
-        + KLESHA_DELUSION_ALPHA * state["unc"]
+        1.0, (1.0 - KLESHA_DELUSION_ALPHA) * k.get("delusion", 0.0) + KLESHA_DELUSION_ALPHA * state["unc"]
     )
     state["klesha"] = k
 
@@ -833,9 +821,7 @@ async def node_store(state: YogacaraState) -> YogacaraState:
                 "seed_type": "异熟种",
             }
         )
-        logger.info(
-            f"[中阴] 命终[{state['death_cause']}] 业力均值 {avg_rew:+.2f} → 种子入库"
-        )
+        logger.info(f"[中阴] 命终[{state['death_cause']}] 业力均值 {avg_rew:+.2f} → 种子入库")
     return state
 
 
@@ -904,9 +890,7 @@ async def node_consolidate(state: YogacaraState) -> YogacaraState:
         dream_children = _run_death_dream(state)
         dream_count = len(dream_children)
         if dream_count:
-            state["turning_result"]["insights"].append(
-                f"[中阴梦境] 一生经验重组为 {dream_count} 个梦中种子，随识转世"
-            )
+            state["turning_result"]["insights"].append(f"[中阴梦境] 一生经验重组为 {dream_count} 个梦中种子，随识转世")
         # 轮回史：这一世的总结（多世进程对外的可观测记录）
         _life_history.append(
             {
@@ -915,9 +899,7 @@ async def node_consolidate(state: YogacaraState) -> YogacaraState:
                 "reward": round(sum(state["recent_rewards"]), 2),
                 "death_cause": state["death_cause"],
                 "turning_level": (state.get("turning_result") or {}).get("turning_level"),
-                "klesha": {
-                    kk: round(vv, 3) for kk, vv in (state.get("klesha") or {}).items()
-                },
+                "klesha": {kk: round(vv, 3) for kk, vv in (state.get("klesha") or {}).items()},
                 "dream_seeds": dream_count,
                 "seeds_total": len(alaya.seeds),
                 "ts": time.time(),
@@ -926,6 +908,16 @@ async def node_consolidate(state: YogacaraState) -> YogacaraState:
         del _life_history[: max(0, len(_life_history) - LIFE_HISTORY_MAX)]
     state["dream_seeds"] = dream_count
     return state
+
+
+def graph_config(step_limit: int | None = None) -> dict:
+    """langgraph 调用配置：recursion_limit 须覆盖整个 episode。
+
+    每个 store→consolidate→perceive 循环计入 recursion_limit
+    （部分版本默认仅 25），步数上限大的 episode 会触发
+    GraphRecursionError——统一按 step_limit×3+15 放行。
+    """
+    return {"recursion_limit": max(50, int((step_limit or 60) * 3) + 15)}
 
 
 def check_done(state: YogacaraState) -> str:
@@ -1021,7 +1013,7 @@ async def main():
         "death_cause": "",
         "klesha": {"greed": 0.0, "aversion": 0.0, "delusion": 0.0},
     }
-    final_state = await graph.ainvoke(init_state)
+    final_state = await graph.ainvoke(init_state, config=graph_config(init_state.get("step_limit")))
     total_steps = final_state["step"]
     total_reward = sum(final_state["recent_rewards"])
     print(f"\n>> 运行结束 | 步数:{total_steps} | 累计奖励:{total_reward:.2f} | 末那反思:{manas.reflections}次")

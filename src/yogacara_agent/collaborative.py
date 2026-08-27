@@ -44,7 +44,13 @@ class CollaborativeCoordinator:
             pos_history=deque(maxlen=5),
         )
         self._sessions[agent_id] = session
-        return {"agent_id": agent_id, "env": session.env, "manas": session.manas, "planner": session.planner, "alaya": self.alaya}
+        return {
+            "agent_id": agent_id,
+            "env": session.env,
+            "manas": session.manas,
+            "planner": session.planner,
+            "alaya": self.alaya,
+        }
 
     def _ensure_agent(self, agent_id: str) -> AgentSession:
         if agent_id not in self._sessions:
@@ -78,7 +84,9 @@ class CollaborativeCoordinator:
                 cross_agent_hits += 1
                 self._cross_agent_retrievals += 1
             action, unc, _ = session.planner.plan(obs, seeds, env_resources=session.env.resources, is_stuck=False)
-            final_action, _, _ = session.manas.filter(action, obs, unc, step, session.recent_rewards, session.pos_history)
+            final_action, _, _ = session.manas.filter(
+                action, obs, unc, step, session.recent_rewards, session.pos_history
+            )
             next_obs, reward, done = session.env.step(final_action)
             session.recent_rewards.append(reward)
             session.pos_history.append(next_obs["pos"])

@@ -34,7 +34,9 @@ class CartPoleAdapter(BaseSimEnv):
         obs = env.reset(seed=seed)
         if isinstance(obs, tuple):
             obs = obs[0]
-        return self.normalizer.normalize_continuous(obs, mode="minmax", bounds=[(-4.8, 4.8), (-5, 5), (-0.418, 0.418), (-5, 5)])
+        return self.normalizer.normalize_continuous(
+            obs, mode="minmax", bounds=[(-4.8, 4.8), (-5, 5), (-0.418, 0.418), (-5, 5)]
+        )
 
     def step(self, action: str | int):
         env = self._ensure_env()
@@ -47,7 +49,14 @@ class CartPoleAdapter(BaseSimEnv):
             done = terminated or truncated
         else:
             observation, reward, done, info = obs
-        return self.normalizer.normalize_continuous(observation, mode="minmax", bounds=[(-4.8, 4.8), (-5, 5), (-0.418, 0.418), (-5, 5)]), float(reward), bool(done), info
+        return (
+            self.normalizer.normalize_continuous(
+                observation, mode="minmax", bounds=[(-4.8, 4.8), (-5, 5), (-0.418, 0.418), (-5, 5)]
+            ),
+            float(reward),
+            bool(done),
+            info,
+        )
 
     def get_observation_space(self) -> dict:
         return {"shape": [4], "dtype": "float32", "low": [-1.0] * 4, "high": [1.0] * 4}

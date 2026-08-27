@@ -111,7 +111,9 @@ class ConsolidationEngine:
         keep_plus = merged_from_keep_plus
 
         # 记录被合并掉的种子 id，以便从 seeds 中移除
-        merged_away_ids = {id(s) for s in keep_plus_original if id(s) not in {id(s) for s in keep_plus}} if not dry_run else set()
+        merged_away_ids = (
+            {id(s) for s in keep_plus_original if id(s) not in {id(s) for s in keep_plus}} if not dry_run else set()
+        )
 
         # ── Step 3: 决定删除 ──────────────────────────────────────────
         # 规则：只删除 align < PRUNE_THRESHOLD 的种子

@@ -161,7 +161,14 @@ class TestCompressionMetrics:
 
         calc = CompressionMetricsCalculator()
         seeds = [{"imp": 0.8, "rew": 5.0}, {"imp": 0.6, "rew": -3.0}, {"imp": 0.3, "rew": 0.0}]
-        metrics = calc.compute(seeds=seeds, initial_tokens=1000, mirror_ratio=0.5, ego_score=0.2,
-                               misapprehension_ratio=0.1, execution_rate=0.8, verbose=False)
+        metrics = calc.compute(
+            seeds=seeds,
+            initial_tokens=1000,
+            mirror_ratio=0.5,
+            ego_score=0.2,
+            misapprehension_ratio=0.1,
+            execution_rate=0.8,
+            verbose=False,
+        )
         assert hasattr(metrics, "cqs"), "CQS should be in metrics"
         assert 0 <= metrics.cqs <= 2.0, f"CQS out of range: {metrics.cqs}"
