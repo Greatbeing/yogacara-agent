@@ -377,9 +377,7 @@ async def collaborative_run(req: CollaborativeRequest):
 
     coord = CollaborativeCoordinator(agent_count=req.agent_count)
     try:
-        result = coord.run_all(
-            episodes_per_agent=req.episodes_per_agent, max_steps=req.max_steps
-        )
+        result = coord.run_all(episodes_per_agent=req.episodes_per_agent, max_steps=req.max_steps)
     finally:
         coord.release()
     return {"status": "ok", "config": req.model_dump(), **result}
