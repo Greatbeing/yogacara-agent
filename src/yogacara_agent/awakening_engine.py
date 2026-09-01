@@ -430,14 +430,22 @@ class AwakeningEngine:
         if len(high_imp_seeds) < 2:
             high_imp_seeds = memory_seeds[:5]  # 降级处理
 
+        # 父本按 业力质量(imp×align) 加权抽取：重要且净善的记忆更常入梦
+        # （纯随机抽取会让临终杂念与毕生要事同权入梦）
+        weights = [max(0.01, s.get("imp", 0.5) * s.get("align", 0.5)) for s in high_imp_seeds]
+
         new_seeds = []
 
         # 重组循环
         num_recombinations = max(3, int(len(high_imp_seeds) * self.recombination_rate))
 
         for _i in range(num_recombinations):
-            # 随机选择两个父本
-            parent1, parent2 = random.sample(high_imp_seeds, 2)
+            # 加权选择两个不同父本
+            parent1, parent2 = random.choices(high_imp_seeds, weights=weights, k=2)
+            tries = 0
+            while parent1 is parent2 and tries < 5:
+                parent2 = random.choices(high_imp_seeds, weights=weights, k=1)[0]
+                tries += 1
 
             # 交叉重组
             child = self._crossover(parent1, parent2)

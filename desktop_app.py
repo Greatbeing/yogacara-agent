@@ -16,10 +16,15 @@ import logging
 import os
 import sys
 
-# 使 src/ 包可导入（无论从哪个 cwd 启动）
-_ROOT = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(_ROOT, "src"))
-os.chdir(_ROOT)  # 记忆文件 memory/seeds.jsonl 相对仓库根
+# PyInstaller 打包支持：
+#   frozen 模式下资源在 sys._MEIPASS 解包目录，可写数据放 exe 同级（记忆持久化）
+if getattr(sys, "frozen", False):
+    _BUNDLE = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
+    _ROOT = os.path.dirname(sys.executable)
+else:
+    _BUNDLE = _ROOT = os.path.dirname(os.path.abspath(__file__))
+    sys.path.insert(0, os.path.join(_ROOT, "src"))
+os.chdir(_ROOT)  # 记忆文件 memory/seeds.jsonl 相对仓库根 / exe 目录
 
 logging.basicConfig(level=logging.WARNING, format="%(asctime)s [%(name)s] %(message)s")
 logging.getLogger("yogacara_agent").setLevel(logging.INFO)
@@ -32,8 +37,8 @@ try:
 except ImportError:
     pass
 
-HTML_PATH = os.path.join(_ROOT, "desktop", "index.html")
-ICON_PATH = os.path.join(_ROOT, "assets", "yogacara.ico")
+HTML_PATH = os.path.join(_BUNDLE, "desktop", "index.html")
+ICON_PATH = os.path.join(_BUNDLE, "assets", "yogacara.ico")
 
 
 def main() -> int:

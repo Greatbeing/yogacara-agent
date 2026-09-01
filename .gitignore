@@ -70,3 +70,8 @@ Thumbs.db
 # 运行时记忆数据（阿赖耶识种子库，本地生成）
 memory/
 src/memory/
+
+# PyInstaller 产物
+build/
+dist/
+*.spec.bak

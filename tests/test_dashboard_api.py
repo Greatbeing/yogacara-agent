@@ -57,6 +57,24 @@ def test_digital_life_endpoints():
         assert limited.status_code == 200
 
 
+def test_collaborative_endpoint():
+    """多智能体协作端点：共享种子库机制验证"""
+    from yogacara_agent.api_server import app
+
+    with TestClient(app) as client:
+        resp = client.post(
+            "/api/collaborative/run",
+            json={"agent_count": 2, "episodes_per_agent": 1, "max_steps": 5},
+        )
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["status"] == "ok"
+        assert set(body["per_agent"].keys()) == {"agent-0", "agent-1"}
+        for v in body["per_agent"].values():
+            assert "mean_reward" in v
+        assert "collaboration_gain" in body and "seed_contribution" in body
+
+
 def test_run_response_lifecycle_fields():
     """/run_episode 响应携带数字生命字段（寿元/死因/世数/规划来源）"""
     from yogacara_agent.api_server import app

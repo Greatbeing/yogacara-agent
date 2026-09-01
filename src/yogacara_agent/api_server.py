@@ -359,6 +359,32 @@ async def samsara_history(limit: int = Query(default=20, ge=1, le=50)):
     }
 
 
+class CollaborativeRequest(BaseModel):
+    """多智能体协作运行请求。"""
+
+    agent_count: int = Field(default=3, ge=2, le=16)
+    episodes_per_agent: int = Field(default=2, ge=1, le=20)
+    max_steps: int = Field(default=20, ge=1, le=60)
+
+
+@app.post("/api/collaborative/run", tags=["ui"])
+async def collaborative_run(req: CollaborativeRequest):
+    """进程内多智能体协作：共享阿赖耶识，返回跨体种子使用与协作增益。
+
+    使用独立的演示版记忆（与主管线持久化种子库隔离），仅作机制验证。
+    """
+    from yogacara_agent.collaborative import CollaborativeCoordinator
+
+    coord = CollaborativeCoordinator(agent_count=req.agent_count)
+    try:
+        result = coord.run_all(
+            episodes_per_agent=req.episodes_per_agent, max_steps=req.max_steps
+        )
+    finally:
+        coord.release()
+    return {"status": "ok", "config": req.model_dump(), **result}
+
+
 @app.get("/memory/stats", response_model=MemoryStatsResponse, tags=["memory"])
 async def memory_stats():
     """
